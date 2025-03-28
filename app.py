@@ -93,10 +93,11 @@ class App(tk.Frame):
             if username == "<localhost>":
                 username = utils.get_current_username()
             formatted_text = username + ": " + message.get_text_content()
+            formatted_text = formatted_text.replace('\n', "\n  ")
+            formatted_text = formatted_text.replace('<system>', "  <system>")
             self.chatlog.configure(state="normal")
             self.chatlog.insert(tk.END, formatted_text + '\n')
             self.chatlog.configure(state="disabled")
-            print(formatted_text)
 
 
 class UserList(tk.Frame):
