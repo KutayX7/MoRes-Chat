@@ -63,16 +63,16 @@ class App(tk.Frame):
 
         # dirty event stuff; but if it works, it works
 
-        self.message_queue: queue.Queue[MessagePacket] = queue.Queue()
+        self.message_queue: queue.SimpleQueue[MessagePacket] = queue.SimpleQueue()
 
         def listen_to_messages():
-            self.after(20, listen_to_messages)
+            self.after(500, listen_to_messages)
             message = message_server.pull_inbound_message()
             if message:
                 self.message_queue.put(message)
                 self.event_generate("<<message_recieved>>")
 
-        self.bind("<<message_recieved>>", self._on_message_recieved, '+')
+        self.bind("<<message_recieved>>", self._on_message_recieved, '')
         self.chatlog.bind('<1>', lambda e: self.chatlog.focus()) # enable highlighting on chatlog
 
         listen_to_messages()
@@ -86,7 +86,7 @@ class App(tk.Frame):
         message_server.outbound_message_queue.put(msg)
     
     def _on_message_recieved(self, e=None):
-        packet = self.message_queue.get()
+        packet = self.message_queue.get(block=False)
         if packet:
             message = packet.message
             username = message.get_author_username()
