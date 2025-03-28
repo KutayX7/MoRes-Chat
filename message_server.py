@@ -9,7 +9,7 @@ from message import Message
 from message_packet import MessagePacket
 from user import User, Users
 
-SERVICE_BROADCAST_IP = '192.168.0.255'
+SERVICE_BROADCAST_IP = '255.255.255.255'
 SERVICE_BROADCAST_PORT = 6001
 SERVICE_BROADCAST_INTERVAL = 8.0
 DISCOVERY_PORT = 6001
@@ -73,6 +73,7 @@ async def broadcast_send_service():
         username = utils.get_current_username()
         assert(type(username) == type("string")) # just in case if the setting is corrupt
         if not utils.validate_username(username):
+            print("WARNING: Detected invalid username.")
             generate_system_message("Please set a valid username in 'data/settings.json' and restart the program.")
         while not utils.validate_username(username):
             username = utils.get_current_username()
@@ -89,8 +90,8 @@ async def broadcast_recieve_service():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     sock.setblocking(False)
-    sock.bind((socket.gethostname(), SERVICE_BROADCAST_PORT))
-    print("Listening for service broadcast messages on UDP port", SERVICE_BROADCAST_PORT)
+    sock.bind((socket.gethostbyname(socket.gethostname()), SERVICE_BROADCAST_PORT))
+    print("Listening for service broadcast messages on %s:%d :" % (socket.gethostbyname(socket.gethostname()), SERVICE_BROADCAST_PORT))
     while not should_exit:
         try:
             data, (ip, port) = sock.recvfrom(256)
