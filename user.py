@@ -1,18 +1,25 @@
 import time
 
+AUTO_CREATE_USERS = False
+
 class User():
     def __init__(self, username: str):
         self.username = username
         self._ip = 'NA'
         self._shared_key = 0
-        self._last_seen = 0
-
-        self.update_last_seen()
+        self._last_seen = -1.0
     
     def has_ip(self):
         return self._ip != 'NA'
     def has_shared_key(self):
         return self._shared_key > 0
+    
+    def is_remote(self) -> bool:
+        if self._ip not in ['127.0.0.1', '0.0.0.0', 'localhost', '::', '0::0']:
+            return True
+        return False
+    def is_active(self) -> bool:
+        return (self._last_seen + 10) > time.time()
     
     def set_ip(self, ip: str):
         self._ip = ip
@@ -31,6 +38,56 @@ class User():
     def get_shared_key(self) -> int:
         if self.has_shared_key():
             return self._shared_key
-        raise AttributeError('User "' + self.username + '" and localhost do not have any share any keys.')
+        raise AttributeError('User "' + self.username + '" and localhost do not have a shared key.')
     def get_last_seen(self) -> float:
         return self._last_seen
+    
+class Users():
+    users: list[User] = []
+
+    def create_user(username: str):
+        if Users.check_username(username):
+            raise RuntimeError('User "' + username + '" already exist.')
+        user = User(username)
+        user.update_last_seen()
+        Users.users.append(user)
+        return user
+
+    def check_username(username: str) -> bool:
+        for user in Users.users:
+            if user.get_username() == username:
+                return True
+        return False
+
+    def get_user_by_username(username: str) -> User:
+        for user in Users.users:
+            if user.get_username() == username:
+                return user
+        if AUTO_CREATE_USERS:
+            Users.create_user(username)
+        raise RuntimeError('User "' + username + '" not found')
+
+    def get_user_by_ip(ip: str) -> User|None:
+        best_last_seen = -1
+        best_candidate = None
+        for user in Users.users:
+            if user.get_ip() == ip and user.get_last_seen() > best_last_seen:
+                best_candidate = user
+                best_last_seen = user.get_last_seen()
+        if user == None:
+            raise RuntimeWarning('No user found with the ip: ' + ip)
+        return best_candidate
+
+    def set_username_ip(username: str, ip: str):
+        user: User = Users.get_user_by_username(username)
+        user.set_ip(ip)
+
+    def get_all_users() -> list[User]:
+        users = Users.users
+        users = users.copy()
+        return users
+    
+    def is_active(user: User|str) -> bool:
+        if type(user) == type(''):
+            user = Users.get_user_by_username(user)
+        return user.is_active()

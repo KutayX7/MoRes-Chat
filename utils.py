@@ -1,15 +1,12 @@
 import unicodedata
 import base64 as b64
-import PIL
 import PIL.Image
 import json
 import select
-import sys
-import os
 import socket
 import asyncio
+import secrets
 from cryptography.fernet import Fernet
-import re
 
 from message import Message
 
@@ -18,6 +15,11 @@ CSI = ESC + '['
 FLUSH_ALLOWED = True
 MAX_PACKET_SIZE = 4096
 ALLOWED_CHARS_FOR_USERNAMES = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+RESERVED_USERNAMES = ["<system>", "localhost", "<localhost>"]
+
+DEFAULT_DH_G = 2
+DEFAULT_DH_P = 19
+FALLBACK_TO_PLAINTEXT = False
 
 COLORS = {
     "Black": 30,
@@ -147,22 +149,13 @@ def generate_backup_settings_file():
         raise RuntimeError("Failed to access 'data/settings.json' file.")
     finally:
         cache["settings"] = None
-    
-def generate_new_keys_file():
-    try:
-        with open('./data/keys.json', 'w') as file:
-            template = json.loads("{}")
-            json.dump(template, file)
-    except:
-        raise RuntimeError("Failed to access 'data/keys.json' file.")
-    finally:
-        cache["keys"] = None
 
 # TODO: Add better error handling
 def get_setting(setting: str) -> object|None:
-    if cache["settings"] != None:
+    settings = cache["settings"]
+    if settings != None:
         if setting in settings:
-            return cache["settings"][setting]
+            return settings[setting]
     value = None
     try:
         with open('./data/settings.json', 'r') as file:
@@ -217,71 +210,173 @@ def input_username() -> str:
 def get_current_username() -> str:
     return get_setting("username")
 
-def send_data_TCP(address, port, data):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.connect((address, port))
-        sock.sendall(data)
+def validate_username(username) -> bool:
+    if type(username) != type("str"):
+        return False
+    if len(username) < 3:
+        return False
+    if not username.isprintable():
+        return False
+    if username in RESERVED_USERNAMES:
+        return False
+    return True
 
-def send_data_UDP(address, port, data):
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as sock:
-        sock.sendto(data, (address, port))
+def generate_key(offset = 2, modulo = 65500):
+    return (secrets.randbelow(modulo * 3) + offset) % modulo
 
-async def recv_all(sock: socket.socket, buffer_size=2048):
-    data = b''
-    while True:
-        ready_to_read, _, _ = select.select([sock], [], [], 0)
-        if ready_to_read:
-            part = sock.recv(buffer_size)
-            data += part
-            if len(part) < buffer_size:
-                break
-        else:
-            await asyncio.sleep(0.05)
-    return data
-
-async def send_encrypted_data_with_common_diffie_hellman(data_to_send: bytes, address, port, our_private_key) -> bytes:
-    our_public_key = (2 ** our_private_key) % 19
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.connect((address, port))
-        sock.sendall(json.dumps({"key": str(our_public_key)}))
-        data = await recv_all(sock)
-        their_key = None
-        decoded_data = json.loads(data)
-        their_key = int(decoded_data["key"])
-        assert(their_key > 0 and their_key < 19)
-        shared_key: int = (their_key ** our_private_key) % 19
-        f = Fernet(b64.b64encode(shared_key.to_bytes(32)))
-        sock.sendall(json.dumps({"encrypted_message": str(f.encrypt(data_to_send))}))
-
-async def send_encrypted_data_with_diffie_hellman(data_to_send: bytes, address, port, our_private_key, p, g) -> bytes:
+async def send_unencrypted_data(text_data: str, address: str, port: int):
     try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.connect((address, port))
-            str_g = str(g)
-            str_p = str(p)
-            our_public_key = (g ** our_private_key) % p
-            sock.sendall(json.dumps({
-                "key": str(our_public_key),
-                "g": str_g, "base": str_g,
-                 "p": str_p, "mod": str_p, "modulus": str_p, "prime": str_p,
-                }))
-            data = await recv_all(sock)
-            their_key = None
-            decoded_data = json.loads(data)
-            if "g" in decoded_data:
-                assert(str(decoded_data["g"]) == str(g))
-            if "p" in decoded_data:
-                assert(str(decoded_data["p"]) == str(p))
-            their_key = int(decoded_data["key"])
-            assert(their_key > 0 and their_key < p)
-            shared_key: int = (their_key ** our_private_key) % p
-            f = Fernet(b64.b64encode(shared_key.to_bytes(32)))
-            sock.sendall(json.dumps({"encrypted_message": str(f.encrypt(data_to_send))}))
-            return True
-    except: # if there is an issue, try again with the standard method
-        try:
-            await send_encrypted_data_with_common_diffie_hellman(data_to_send, address, port, our_private_key)
-            return True
-        except:
-            return False
+        reader, writer = await asyncio.open_connection(address, port)
+        writer.write(json.dumps({"unencrypted_message": text_data}).encode())
+        writer.drain()
+        return True
+    except:
+        return False
+    finally:
+        if writer:
+            writer.close()
 
+async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, address: str, port: int, our_private_key: int) -> bool:
+    try:
+        # generate our public key
+        our_public_key = (DEFAULT_DH_G ** our_private_key) % DEFAULT_DH_P
+
+        # establish connection
+        reader, writer = await asyncio.open_connection(address, port)
+
+        # send our oublic key
+        writer.write(json.dumps({"key": str(our_public_key)}).encode())
+        await writer.drain()
+
+        # read their public key
+        data = await reader.read()
+        decoded_data = json.loads(data.decode())
+        peer_public_key = int(decoded_data["key"])
+
+        # check if the key has any issues
+        assert(peer_public_key > 0 and peer_public_key < DEFAULT_DH_P)
+
+        # generate a shared key using our private key and their public key
+        shared_key: int = (peer_public_key ** our_private_key) % DEFAULT_DH_P
+
+        # encrypt the data using the shared key
+        f = Fernet(b64.b64encode(shared_key.to_bytes(32)))
+        encrypted_data = f.encrypt(data_to_send.encode())
+
+        # send the encrypted message
+        writer.write(json.dumps({"encrypted_message": str(encrypted_data)}).encode())
+        await writer.drain()
+        return True
+    except Exception as e:
+        print("WARNING:", e)
+        return False
+    finally:
+        if writer:
+            writer.close()
+
+async def send_encrypted_data_with_custom_diffie_hellman(data_to_send: str, address: str, port: int, our_private_key: int, g: int, p: int) -> bool:
+    try:
+        # generate our public key
+        our_public_key = (g ** our_private_key) % p
+
+        # establish connection
+        reader, writer = await asyncio.open_connection(address, port)
+
+        # send our oublic key along with our custom g and p
+        g_str = str(g)
+        p_str = str(p)
+        writer.write(json.dumps({
+                "key": str(our_public_key),
+                "g": g_str, "base": g_str,
+                 "p": p_str, "mod": p_str, "modulus": p_str, "prime": p_str,
+                }).encode())
+        await writer.drain()
+
+        # read their public key
+        data = await reader.read()
+        decoded_data: dict = json.loads(data.decode())
+        peer_public_key = int(decoded_data["key"])
+        peer_g_str = str(decoded_data.get("g", str(DEFAULT_DH_G)))
+        peer_p_str = str(decoded_data.get("p", str(DEFAULT_DH_P)))
+
+        # check if the key has any issues and if the peer supports our custom g and p values
+        assert(peer_public_key > 0 and peer_public_key < p)
+        assert(peer_g_str == g_str)
+        assert(peer_p_str == p_str)
+
+        # generate a shared key using our private key and their public key
+        shared_key: int = (peer_public_key ** our_private_key) % p
+
+        # encrypt the data using the shared key
+        f = Fernet(b64.b64encode(shared_key.to_bytes(32)))
+        encrypted_data = f.encrypt(data_to_send.encode())
+
+        # send the encrypted message
+        writer.write(json.dumps({"encrypted_message": str(encrypted_data)}).encode())
+        await writer.drain()
+        return True
+    except Exception as e:
+        print("WARNING:", e)
+        return False
+    finally:
+        if writer:
+            writer.close()
+
+async def send_encrypted_data_with_diffie_hellman(data_to_send: bytes, address, port, our_private_key, g=DEFAULT_DH_G, p=DEFAULT_DH_P) -> int:
+    success = await send_encrypted_data_with_custom_diffie_hellman(data_to_send, address, port, our_private_key, g=g, p=p)
+    if success:
+        return 2
+    else:
+        success = await send_encrypted_data_with_common_diffie_hellman(data_to_send, address, port, our_private_key)
+        if success:
+            return 1
+        if FALLBACK_TO_PLAINTEXT:
+            success = await send_unencrypted_data(data_to_send, address, port)
+            if success:
+                return 0
+        return -1
+    
+def get_decrypted_data(data: bytes, key: int) -> str:
+    f = Fernet(b64.b64encode(key.to_bytes(32)))
+    return f.decrypt(data).decode()
+
+async def async_filter(async_predicate, iterable):
+    result = []
+    for i in iterable:
+        j = await async_predicate(i)
+        if j:
+            result.append(i)
+    return result
+
+async def async_map(async_func, iterable):
+    result = []
+    for i in iterable:
+        j = await async_func(i)
+        result.append(j)
+    return result
+
+async def is_prime(n):
+    if n % 2 == 0:
+        return n == 2
+    if n % 3 == 0:
+        return n == 3
+    if n % 5 == 0:
+        return n == 5
+    if n % 11 == 0:
+        return n == 11
+    if n % 13 == 0:
+        return n == 13
+    if n % 7 == 0:
+        return n == 7
+    if n % 17 == 0:
+        return n == 17
+    if n % 19 == 0:
+        return n == 19
+    if n % 23 == 0:
+        return n == 23
+    for i in range(29, int((n**0.5) + 1.5), 2):
+        if n % i == 0:
+            return False
+        elif i % 512 == 1:
+            await asyncio.sleep(0.001)
+    return True
