@@ -1,2 +1,2 @@
 # MoRes-Chat
-A LAN console chat app
+A simple LAN chat app
