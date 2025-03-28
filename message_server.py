@@ -73,7 +73,7 @@ async def broadcast_send_service():
         username = utils.get_current_username()
         assert(type(username) == type("string")) # just in case if the setting is corrupt
         if not utils.validate_username(username):
-            generate_system_message("Please choose a new username using the '/username' command. Type '/help' for a list of all available commands.")
+            generate_system_message("Please set a valid username in 'data/settings.json' and restart the program.")
         while not utils.validate_username(username):
             username = utils.get_current_username()
             await asyncio.sleep(1)
