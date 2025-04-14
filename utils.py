@@ -88,8 +88,12 @@ def change_username(username: str):
 
 def get_current_username() -> str:
     username: Any = get_setting("username")
-    assert(isinstance(username, str))
-    return username
+    if isinstance(username, str):
+        return username
+    else:
+        set_setting('username', '')
+        return get_current_username()
+    
 
 def validate_username(username: Any) -> bool:
     if type(username) != type("str"):
