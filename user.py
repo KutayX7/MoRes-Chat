@@ -4,6 +4,8 @@ AUTO_CREATE_USERS = False
 
 class User():
     def __init__(self, username: str):
+        assert(username)
+        assert(type(username) == type(''))
         self.username = username
         self._ip = 'NA'
         self._shared_key = 0
@@ -45,6 +47,7 @@ class User():
 class Users():
     users: list[User] = []
 
+    @staticmethod
     def create_user(username: str):
         if Users.check_username(username):
             raise RuntimeError('User "' + username + '" already exist.')
@@ -53,12 +56,14 @@ class Users():
         Users.users.append(user)
         return user
 
+    @staticmethod
     def check_username(username: str) -> bool:
         for user in Users.users:
             if user.get_username() == username:
                 return True
         return False
 
+    @staticmethod
     def get_user_by_username(username: str) -> User:
         for user in Users.users:
             if user.get_username() == username:
@@ -67,6 +72,7 @@ class Users():
             Users.create_user(username)
         raise RuntimeError('User "' + username + '" not found')
 
+    @staticmethod
     def get_user_by_ip(ip: str) -> User|None:
         best_last_seen = -1
         best_candidate = None
@@ -74,20 +80,21 @@ class Users():
             if user.get_ip() == ip and user.get_last_seen() > best_last_seen:
                 best_candidate = user
                 best_last_seen = user.get_last_seen()
-        if user == None:
+        if best_candidate == None:
             raise RuntimeWarning('No user found with the ip: ' + ip)
         return best_candidate
 
+    @staticmethod
     def set_username_ip(username: str, ip: str):
         user: User = Users.get_user_by_username(username)
         user.set_ip(ip)
 
-    def get_all_users() -> list[User]:
-        users = Users.users
-        users = users.copy()
-        return users
+    @staticmethod
+    def get_all_users():
+        return Users.users.copy()
     
+    @staticmethod
     def is_active(user: User|str) -> bool:
-        if type(user) == type(''):
+        if isinstance(user, str):
             user = Users.get_user_by_username(user)
         return user.is_active()

@@ -3,7 +3,8 @@ import copy
 from attachment import Attachment
 
 class Message():
-    def __init__(self, author_username: str, text_content: str, attachments: list[Attachment] = [], metadata: dict = {}):
+    def __init__(self, author_username: str, text_content: str, attachments: list[Attachment] = [], metadata: dict[object, object] = {}):
+        assert(type(author_username) == type(''))
         self._content = text_content
         self._author = author_username
         self._timestamp = 0

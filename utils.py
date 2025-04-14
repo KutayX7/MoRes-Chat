@@ -1,149 +1,36 @@
 import unicodedata
-import base64 as b64
-import PIL.Image
 import json
-import select
-import socket
 import asyncio
 import secrets
-from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms as CipherAlgorithms, modes as CipherModes
+from typing import Any
 
+from console_utils import *
+from config import *
 from message import Message
 
-ESC = '\033'
-CSI = ESC + '['
-FLUSH_ALLOWED = True
-MAX_PACKET_SIZE = 4096
-ALLOWED_CHARS_FOR_USERNAMES = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
-RESERVED_USERNAMES = ["<system>", "localhost", "<localhost>"]
-
-DEFAULT_DH_G = 2
-DEFAULT_DH_P = 19
-FALLBACK_TO_PLAINTEXT = False
-
-COLORS = {
-    "Black": 30,
-    "Red": 31,
-    "Green": 32,
-    "Yellow": 33,
-    "Blue": 34,
-    "Magenta": 35,
-    "Cyan": 36,
-    "White": 37,
-    "Bright Black": 90,
-    "Bright Red": 91,
-    "Bright Green": 92,
-    "Bright Yellow": 93,
-    "Bright Blue": 94,
-    "Bright Magenta": 95,
-    "Bright Cyan": 96,
-    "Bright White": 97,
-}
+settings_template = """{
+    "username": "",
+    "allow-embeds": true,
+    "encryption-level": 1,
+    "log-chat-history": true
+}"""
 
 cache = {
     "settings": None
 }
 
-def write(*values, flush: bool = FLUSH_ALLOWED):
-    print(*values, end='', flush=flush)
-
-def flush():
-    print("", end='', flush=True)
-
-def set_flush_allowed(flush: bool):
-    global FLUSH_ALLOWED
-    old_value = FLUSH_ALLOWED
-    FLUSH_ALLOWED = flush
-    return old_value
-
-def set_cursor_YX(y: int, x: int):
-    write(CSI + y + ';' + x + 'H')
-
-def return_cursor_to_home():
-    write(CSI + "0;0H")
-
-def clear_current_line():
-    write(CSI + "2K\r")
-
-def setForegroundColor(color: int):
-    write(CSI + str(color) + "m")
-
-def setBackgroundColor(color: int):
-    write(CSI + str(color + 10) + "m")
-
-def resetColors():
-    write(CSI + "0m")
-
-def clear_window():
-    write(CSI + "2J" + CSI + "3J")
-    return_cursor_to_home()
-
 def sanitize_text(text: str) -> str:
     return "".join(ch for ch in text if unicodedata.category(ch)[0]!="C" or ch == '\n')
 
-def print_authored_text_message(message: Message):
-    oldMode = FLUSH_ALLOWED
-    set_flush_allowed(False)
-    clear_current_line()
-    setForegroundColor(COLORS["Yellow"])
-    write(message.get_author_username() + ": ")
-    setForegroundColor(COLORS["White"])
-    write('\n> ' + sanitize_text(message.get_text_content()))
-    resetColors()
-    set_flush_allowed(oldMode)
-    write('\n')
-
-
-def packRGB(r, g, b):
-    return (r * 65536 + g * 256 + b) // 1
-
-def unpackRGB(c):
-    r = c // 65536
-    g = (c % 65536) // 256
-    b = c % 256
-    return (r, g, b)
-
-# Embeds an (sixel) image in the terminal
-# It was a pain the ass writing this and making it work on every sixel-supported terminal
-def print_image(path):
-    try:
-        with PIL.Image.open(path) as image:
-            image = image.convert("RGBA", colors=256)
-            width, height = image.width, image.height
-            encodedData = "\033Pq"
-            colors = {}
-            for y in range(0, height, 6):
-                for x in range(width):
-                    for i in range(min(y + 6, height) - 1, y - 1, -1):
-                        (r, g, b, a) = image.getpixel((x, i))
-                        p = packRGB(r, g, b)
-                        if not p in colors:
-                            if a < 1: #hehehehehehe
-                                r, g, b = 0, 0, 0
-                            colors[p] = f'{r*100//255};{g*100//255};{b*100//255}'
-            for y in range(0, height, 6):
-                for c in colors:
-                    encodedData += f'#0;2;{colors[c]}#0'
-                    for x in range(width):
-                        mask = 0
-                        for i in range(min(y + 6, height) - 1, y - 1, -1):
-                            (r, g, b, a) = image.getpixel((x, i))
-                            p = packRGB(r, g, b)
-                            mask *= 2
-                            if p == c:
-                                mask += 1
-                        encodedData += chr(mask + 63)
-                    encodedData += "$"
-                encodedData = encodedData[:-1] + "-"
-            encodedData = encodedData[:-1] + "\033\\"
-            print(f'Image:{path} ({width}x{height}px): ' + encodedData)
-    except:
-        write(f'Image:{path}: Failed to load.\n')
+def debug_print(*args: object, level: int = 2, **kwargs: dict[str, object]):
+    if DEBUG_LEVEL >= level:
+        print_with_timestamp(*args, **kwargs)
 
 def generate_backup_settings_file():
     try:
         with open('./data/settings.json', 'w') as file:
-            template = json.loads('{"username": null, "allow-embeds": true, "e2ee": "DHE"}')
+            template = json.loads(settings_template)
             json.dump(template, file)
     except:
         raise RuntimeError("Failed to access 'data/settings.json' file.")
@@ -166,12 +53,15 @@ def get_setting(setting: str) -> object|None:
         else:
             raise RuntimeError(f'Setting {setting} not found in "data/settings.json"')
     except OSError:
-        raise RuntimeError("Failed to access 'data/settings.json'.")
-    except RuntimeError as e:
-        print("ERROR:", e)
-    except:
+        debug_print("Failed to access 'data/settings.json'", level=1)
         generate_backup_settings_file()
-        get_setting(setting)
+        return get_setting(setting)
+    except RuntimeError as e:
+        debug_print("RuntimeError:", e, level=1)
+    except Exception as e:
+        debug_print("Exception:", e, level=1)
+        generate_backup_settings_file()
+        return get_setting(setting)
     finally:
         return value
 
@@ -187,33 +77,24 @@ def set_setting(setting: str, value: object|None):
             json.dump(settings, file)
         success = True
     except Exception as e:
-        print("WARNING: Failed to save settings:", e)
+        debug_print("ERROR: Failed to save settings:", e, level=1)
     finally:
         return success
 
-def input_username() -> str:
-    while True:
-        name = input("Enter username: ")
-        if len(name) >= 3 and len(name) <= 20 and name.isascii() and name.isprintable():
-            valid = True
-            for c in name:
-                if c not in ALLOWED_CHARS_FOR_USERNAMES:
-                    valid = False
-                    break
-            if name.count("_") > 1 or name[0] == '_' or name[-1] == '_':
-                valid = False
-            if valid:
-                break
-        print("You've entered an invalid or unsupported username. Usernames can only contain 3-20 alphanumeric English characters and optionally a single underscore somewhere in the middle.")
-    return name
+def change_username(username: str):
+    if not validate_username(username):
+        raise RuntimeError("Invalid username.")
+    set_setting('username', username)
 
 def get_current_username() -> str:
-    return get_setting("username")
+    username: Any = get_setting("username")
+    assert(isinstance(username, str))
+    return username
 
-def validate_username(username) -> bool:
+def validate_username(username: Any) -> bool:
     if type(username) != type("str"):
         return False
-    if len(username) < 3:
+    if len(username) < 3 or len(username) > 20:
         return False
     if not username.isprintable():
         return False
@@ -221,22 +102,31 @@ def validate_username(username) -> bool:
         return False
     return True
 
-def generate_key(offset = 2, modulo = 65500):
+def generate_key(offset: int = 2, modulo: int = 65500):
     return (secrets.randbelow(modulo * 3) + offset) % modulo
 
 async def send_unencrypted_data(text_data: str, address: str, port: int):
+    debug_print("Initiating unencrypted connection.")
+    writer = None
     try:
-        reader, writer = await asyncio.open_connection(address, port)
+        _, writer = await asyncio.open_connection(address, port)
         writer.write(json.dumps({"unencrypted_message": text_data}).encode())
-        writer.drain()
+        writer.write_eof()
+        await writer.drain()
+        debug_print("Successfully sent the unencrypted message.")
         return True
     except:
+        debug_print("Unencrypted connection failed.")
         return False
     finally:
         if writer:
             writer.close()
+            await writer.wait_closed()
 
 async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, address: str, port: int, our_private_key: int) -> bool:
+    debug_print("Initiating common DH key exchange")
+    writer = None
+    writer2 = None
     try:
         # generate our public key
         our_public_key = (DEFAULT_DH_G ** our_private_key) % DEFAULT_DH_P
@@ -246,10 +136,11 @@ async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, addr
 
         # send our oublic key
         writer.write(json.dumps({"key": str(our_public_key)}).encode())
+        writer.write_eof()
         await writer.drain()
 
         # read their public key
-        data = await reader.read()
+        data = await asyncio.wait_for(reader.read(), timeout=10)
         decoded_data = json.loads(data.decode())
         peer_public_key = int(decoded_data["key"])
 
@@ -260,27 +151,39 @@ async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, addr
         shared_key: int = (peer_public_key ** our_private_key) % DEFAULT_DH_P
 
         # encrypt the data using the shared key
-        f = Fernet(b64.b64encode(shared_key.to_bytes(32)))
-        encrypted_data = f.encrypt(data_to_send.encode())
+        encrypted_data = encrypt_data(data_to_send.encode(), shared_key)
 
         # send the encrypted message
-        writer.write(json.dumps({"encrypted_message": str(encrypted_data)}).encode())
-        await writer.drain()
+        _, writer2 = await asyncio.open_connection(address, port)
+        writer2.write(json.dumps({"encrypted_message": str(encrypted_data)}).encode())
+        writer2.write_eof()
+        await writer2.drain()
+        debug_print("Successfully sent the encrypted message.")
         return True
-    except Exception as e:
-        print("WARNING:", e)
+    except:
+        debug_print("Common DH failed.")
         return False
     finally:
         if writer:
             writer.close()
+            await writer.wait_closed()
+        if writer2:
+            writer2.close()
+            await writer2.wait_closed()
 
 async def send_encrypted_data_with_custom_diffie_hellman(data_to_send: str, address: str, port: int, our_private_key: int, g: int, p: int) -> bool:
+    debug_print("Initiating custom DH key exchange")
+    writer = None
+    writer2 = None
     try:
         # generate our public key
         our_public_key = (g ** our_private_key) % p
+        debug_print("Our private key:", our_private_key)
+        debug_print("Our public key:", our_public_key)
 
         # establish connection
         reader, writer = await asyncio.open_connection(address, port)
+        debug_print("Connected to", writer.get_extra_info('peername'))
 
         # send our oublic key along with our custom g and p
         g_str = str(g)
@@ -290,39 +193,50 @@ async def send_encrypted_data_with_custom_diffie_hellman(data_to_send: str, addr
                 "g": g_str, "base": g_str,
                  "p": p_str, "mod": p_str, "modulus": p_str, "prime": p_str,
                 }).encode())
+        writer.write_eof()
         await writer.drain()
+        debug_print("Sent public key")
 
         # read their public key
-        data = await reader.read()
-        decoded_data: dict = json.loads(data.decode())
-        peer_public_key = int(decoded_data["key"])
-        peer_g_str = str(decoded_data.get("g", str(DEFAULT_DH_G)))
-        peer_p_str = str(decoded_data.get("p", str(DEFAULT_DH_P)))
+        data = await asyncio.wait_for(reader.read(), timeout=10)
+        debug_print("Received peer's public key")
+        decoded_data: dict = json.loads(data.decode()) # type: ignore
+        peer_public_key = int(decoded_data["key"]) # type: ignore
+        peer_dh_params = extract_diffie_hellman_parameters_from_dict(decoded_data)
 
         # check if the key has any issues and if the peer supports our custom g and p values
         assert(peer_public_key > 0 and peer_public_key < p)
-        assert(peer_g_str == g_str)
-        assert(peer_p_str == p_str)
+        assert(peer_dh_params["g"] == g)
+        assert(peer_dh_params["p"] == p)
+
+        debug_print("Agreed on DH parameters. g:", g, ", p:", p)
 
         # generate a shared key using our private key and their public key
         shared_key: int = (peer_public_key ** our_private_key) % p
+        debug_print("Shared key:", shared_key)
 
         # encrypt the data using the shared key
-        f = Fernet(b64.b64encode(shared_key.to_bytes(32)))
-        encrypted_data = f.encrypt(data_to_send.encode())
+        encrypted_data = encrypt_data(data_to_send.encode(), shared_key)
 
         # send the encrypted message
-        writer.write(json.dumps({"encrypted_message": str(encrypted_data)}).encode())
-        await writer.drain()
+        _, writer2 = await asyncio.open_connection(address, port)
+        writer2.write(json.dumps({"encrypted_message": str(encrypted_data)}).encode())
+        writer2.write_eof()
+        await writer2.drain()
+        debug_print("Successfully sent the encrypted message.")
         return True
-    except Exception as e:
-        print("WARNING:", e)
+    except Exception:
+        debug_print("Custom DH failed.")
         return False
     finally:
         if writer:
             writer.close()
+            await writer.wait_closed()
+        if writer2:
+            writer2.close()
+            await writer2.wait_closed()
 
-async def send_encrypted_data_with_diffie_hellman(data_to_send: bytes, address, port, our_private_key, g=DEFAULT_DH_G, p=DEFAULT_DH_P) -> int:
+async def send_encrypted_data_with_diffie_hellman(data_to_send: str, address: str, port: int, our_private_key: int, g: int = DEFAULT_DH_G, p: int = DEFAULT_DH_P) -> int:
     success = await send_encrypted_data_with_custom_diffie_hellman(data_to_send, address, port, our_private_key, g=g, p=p)
     if success:
         return 2
@@ -335,48 +249,48 @@ async def send_encrypted_data_with_diffie_hellman(data_to_send: bytes, address, 
             if success:
                 return 0
         return -1
-    
-def get_decrypted_data(data: bytes, key: int) -> str:
-    f = Fernet(b64.b64encode(key.to_bytes(32)))
-    return f.decrypt(data).decode()
 
-async def async_filter(async_predicate, iterable):
-    result = []
-    for i in iterable:
-        j = await async_predicate(i)
-        if j:
-            result.append(i)
+def encrypt_data(data: bytes, key: int) -> bytes:
+    cipher = Cipher(CipherAlgorithms.TripleDES(key=str(key).encode().ljust(24)), CipherModes.CBC(b''))
+    encryptor = cipher.encryptor()
+    return encryptor.update(data)
+
+def get_decrypted_data(data: bytes, key: int) -> bytes:
+    cipher = Cipher(CipherAlgorithms.TripleDES(key=str(key).encode().ljust(24)), CipherModes.CBC(b''))
+    deencryptor = cipher.decryptor()
+    return deencryptor.update(data)
+
+def search_dict(dictionary: Any, keys: list[str]) -> object|None:
+    for k in dictionary.keys():
+        v = dictionary[k]
+        if k in keys:
+            return v
+        if isinstance(v, dict):
+            result = search_dict(v, keys)
+            if result:
+                return result
+    return None
+
+def extract_diffie_hellman_parameters_from_dict(dictionary: Any, default_g: int = DEFAULT_DH_G, default_p: int = DEFAULT_DH_P):
+    g = search_dict(dictionary, ["g", "G", "dh_g", "base"])
+    p = search_dict(dictionary, ["p", "P", "dh_p", "mod", "modulo", "prime"])
+    result = {'g': default_g, 'p': default_p}
+    if isinstance(g, str) or isinstance(g, int):
+        result["g"] = int(g)
+    if isinstance(p, str) or isinstance(p, int):
+        result["p"] = int(p)
     return result
 
-async def async_map(async_func, iterable):
-    result = []
-    for i in iterable:
-        j = await async_func(i)
-        result.append(j)
-    return result
-
-async def is_prime(n):
-    if n % 2 == 0:
-        return n == 2
-    if n % 3 == 0:
-        return n == 3
-    if n % 5 == 0:
-        return n == 5
-    if n % 11 == 0:
-        return n == 11
-    if n % 13 == 0:
-        return n == 13
-    if n % 7 == 0:
-        return n == 7
-    if n % 17 == 0:
-        return n == 17
-    if n % 19 == 0:
-        return n == 19
-    if n % 23 == 0:
-        return n == 23
-    for i in range(29, int((n**0.5) + 1.5), 2):
-        if n % i == 0:
-            return False
-        elif i % 512 == 1:
-            await asyncio.sleep(0.001)
-    return True
+def log_chat_message(message: Message):
+    if get_setting("log-chat-history"):
+        text = "Date: %s, Author: %s, Message: %s" % (time.ctime(), message.get_author_username(), message.get_text_content())
+        text = text.replace('\033[', "ESC [")
+        text = text.replace('\033]', "ESC ]")
+        text = text.replace('\033', "ESC")
+        text = text.replace('\a', "BELL")
+        text = text.replace('\\', "\\\\")
+        text = text.replace('\n', "\\n")
+        text = text.replace('\t', "\\t")
+        text = text.strip()
+        with open("message_history.log", '+a') as file:
+            file.write(text + '\n')

@@ -8,7 +8,7 @@ class MessagePacket():
     def is_inbound(self):
         return ('<localhost>' in self.receivers)
     def get_outbound_receivers(self):
-        result = []
+        result: list[str] = []
         current_username = utils.get_current_username()
         for receiver in self.receivers:
             if utils.validate_username(receiver) and receiver != current_username:
