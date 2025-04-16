@@ -143,17 +143,17 @@ async def handle_message_client(reader: asyncio.StreamReader, writer: asyncio.St
         if not user:
             raise RuntimeError("Unknown user.")
         data = await reader.read(utils.MAX_PACKET_SIZE)
-        message = data.decode()
+        message = data.decode(encoding='utf-8')
         decoded_object = json.loads(message)
         dh_params = utils.extract_diffie_hellman_parameters_from_dict(decoded_object, default_g=DH_G, default_p=DH_P)
         g, p = dh_params['g'], dh_params['p']
         if "key" in decoded_object: # diffie hellman key exhange + maybe encrypted message
             their_public_key = int(decoded_object["key"])
             private_key = utils.generate_key()
-            public_key = (g ** private_key) % p
-            shared_key = (their_public_key ** private_key) % p
+            public_key: int = (g ** private_key) % p
+            shared_key: int = (their_public_key ** private_key) % p
             user.set_shared_key(shared_key)
-            writer.write(json.dumps({"key": str(public_key)}).encode())
+            writer.write(json.dumps({"key": str(public_key)}).encode(encoding='utf-8'))
             writer.write_eof()
             await writer.drain()
         if "unencrypted_message" in decoded_object:
@@ -166,7 +166,7 @@ async def handle_message_client(reader: asyncio.StreamReader, writer: asyncio.St
                 return
             cypher_text = decoded_object["encrypted_message"]
             assert(isinstance(cypher_text, str))
-            text = utils.get_decrypted_data(bytes(cypher_text, encoding="UTF-8"), shared_key).decode()
+            text = utils.get_decrypted_data(bytes(cypher_text, encoding="UTF-8"), shared_key).decode(encoding='utf-8')
             push_inbound_message(MessagePacket(Message(user.get_username(), text), ['<localhost>']))
     except Exception as e:
         utils.debug_print("Exception while handling TCP request:", e)

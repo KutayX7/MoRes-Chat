@@ -114,7 +114,7 @@ async def send_unencrypted_data(text_data: str, address: str, port: int):
     writer = None
     try:
         _, writer = await asyncio.open_connection(address, port)
-        writer.write(json.dumps({"unencrypted_message": text_data}).encode())
+        writer.write(json.dumps({"unencrypted_message": text_data}).encode(encoding='utf-8'))
         writer.write_eof()
         await writer.drain()
         debug_print("Successfully sent the unencrypted message.")
@@ -139,13 +139,13 @@ async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, addr
         reader, writer = await asyncio.open_connection(address, port)
 
         # send our oublic key
-        writer.write(json.dumps({"key": str(our_public_key)}).encode())
+        writer.write(json.dumps({"key": str(our_public_key)}).encode(encoding='utf-8'))
         writer.write_eof()
         await writer.drain()
 
         # read their public key
         data = await asyncio.wait_for(reader.read(), timeout=10)
-        decoded_data = json.loads(data.decode())
+        decoded_data = json.loads(data.decode(encoding='utf-8'))
         peer_public_key = int(decoded_data["key"])
 
         # check if the key has any issues
@@ -155,7 +155,7 @@ async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, addr
         shared_key: int = (peer_public_key ** our_private_key) % DEFAULT_DH_P
 
         # encrypt the data using the shared key
-        encrypted_data = encrypt_data(data_to_send.encode(), shared_key)
+        encrypted_data = encrypt_data(data_to_send.encode(encoding='utf-8'), shared_key)
 
         # send the encrypted message
         _, writer2 = await asyncio.open_connection(address, port)
@@ -164,8 +164,8 @@ async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, addr
         await writer2.drain()
         debug_print("Successfully sent the encrypted message.")
         return True
-    except:
-        debug_print("Common DH failed.")
+    except Exception as e:
+        debug_print("Common DH failed. Error:", e, level=1)
         return False
     finally:
         if writer:
@@ -196,7 +196,7 @@ async def send_encrypted_data_with_custom_diffie_hellman(data_to_send: str, addr
                 "key": str(our_public_key),
                 "g": g_str, "base": g_str,
                  "p": p_str, "mod": p_str, "modulus": p_str, "prime": p_str,
-                }).encode())
+                }).encode(encoding='utf-8'))
         writer.write_eof()
         await writer.drain()
         debug_print("Sent public key")
@@ -204,7 +204,7 @@ async def send_encrypted_data_with_custom_diffie_hellman(data_to_send: str, addr
         # read their public key
         data = await asyncio.wait_for(reader.read(), timeout=10)
         debug_print("Received peer's public key")
-        decoded_data: dict = json.loads(data.decode()) # type: ignore
+        decoded_data: dict = json.loads(data.decode(encoding='utf-8')) # type: ignore
         peer_public_key = int(decoded_data["key"]) # type: ignore
         peer_dh_params = extract_diffie_hellman_parameters_from_dict(decoded_data)
 
@@ -229,8 +229,8 @@ async def send_encrypted_data_with_custom_diffie_hellman(data_to_send: str, addr
         await writer2.drain()
         debug_print("Successfully sent the encrypted message.")
         return True
-    except Exception:
-        debug_print("Custom DH failed.")
+    except Exception as e:
+        debug_print("Custom DH failed. Error:", e, level=2)
         return False
     finally:
         if writer:
@@ -296,5 +296,8 @@ def log_chat_message(message: Message):
         text = text.replace('\n', "\\n")
         text = text.replace('\t', "\\t")
         text = text.strip()
-        with open("message_history.log", '+a') as file:
-            file.write(text + '\n')
+        try:
+            with open("message_history.log", '+a', encoding='utf-8') as file:
+                file.write(text + '\n')
+        except:
+            debug_print("Failed to log the message.")
