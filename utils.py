@@ -65,8 +65,7 @@ def get_setting(setting: str) -> object|None:
         debug_print("Exception:", e, level=1)
         generate_backup_settings_file()
         return get_setting(setting)
-    finally:
-        return value
+    return value
 
 def set_setting(setting: str, value: object|None):
     success = False
@@ -81,8 +80,7 @@ def set_setting(setting: str, value: object|None):
         success = True
     except Exception as e:
         debug_print("ERROR: Failed to save settings:", e, level=1)
-    finally:
-        return success
+    return success
 
 def change_username(username: str):
     if not validate_username(username):
