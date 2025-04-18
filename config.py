@@ -1,3 +1,4 @@
+from constants import *
 
 ICON_PATH = "./placeholder_app_icon_2_16x16.png"
 
@@ -15,15 +16,12 @@ SERVICE_BROADCAST_INTERVAL = 8.0 # in seconds
 DISCOVERY_PORT = 6001
 MESSAGING_PORT = 6000
 
-# Default Diffie Hellman and enryption parameters
-DEFAULT_DH_G = 2
-DEFAULT_DH_P = 19
+# Diffie Hellman and enryption parameters
 DH_G = DEFAULT_DH_G
 DH_P = DEFAULT_DH_P
-DH_P2 = int("4958793475749573457394866757737484574858584658956895240863474895455346985801") # an alternative value for P, probably won't be supported by other peers
 FALLBACK_TO_PLAINTEXT = True
 
 PREFERRED_ENCRYPTION_LEVEL: int = 1 # 0: No encryption, 1 (default): Diffie-Hellman with default parameters, 2: Diffie-Hellman with custom parameters (P2)
 # can fallback to unsecure mode if FALLBACK_TO_PLAINTEXT is set
 
-TPS = 20 # ticks per second
+TPS = 20 # ticks per second, range: [1, 250]

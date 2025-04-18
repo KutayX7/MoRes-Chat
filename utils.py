@@ -2,12 +2,15 @@ import unicodedata
 import json
 import asyncio
 import secrets
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms as CipherAlgorithms, modes as CipherModes
+from base64 import b64decode, b64encode
+from cryptography.hazmat.primitives.ciphers import Cipher, modes as CipherModes
+from cryptography.hazmat.decrepit.ciphers.algorithms import TripleDES
 from typing import Any
 
 from console_utils import *
 from config import *
 from message import Message
+from constants import *
 
 settings_template = """{
     "username": "",
@@ -155,11 +158,11 @@ async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, addr
         shared_key: int = (peer_public_key ** our_private_key) % DEFAULT_DH_P
 
         # encrypt the data using the shared key
-        encrypted_data = encrypt_data(data_to_send.encode(encoding='utf-8'), shared_key)
+        encrypted_data: str = encrypt_text(data_to_send, shared_key)
 
         # send the encrypted message
         _, writer2 = await asyncio.open_connection(address, port)
-        writer2.write(json.dumps({"encrypted_message": str(encrypted_data)}).encode())
+        writer2.write(json.dumps({"encrypted_message": encrypted_data}).encode())
         writer2.write_eof()
         await writer2.drain()
         debug_print("Successfully sent the encrypted message.")
@@ -220,11 +223,11 @@ async def send_encrypted_data_with_custom_diffie_hellman(data_to_send: str, addr
         debug_print("Shared key:", shared_key)
 
         # encrypt the data using the shared key
-        encrypted_data = encrypt_data(data_to_send.encode(), shared_key)
+        encrypted_data = encrypt_text(data_to_send, shared_key)
 
         # send the encrypted message
         _, writer2 = await asyncio.open_connection(address, port)
-        writer2.write(json.dumps({"encrypted_message": str(encrypted_data)}).encode())
+        writer2.write(json.dumps({"encrypted_message": encrypted_data}).encode())
         writer2.write_eof()
         await writer2.drain()
         debug_print("Successfully sent the encrypted message.")
@@ -254,15 +257,30 @@ async def send_encrypted_data_with_diffie_hellman(data_to_send: str, address: st
                 return 0
         return -1
 
-def encrypt_data(data: bytes, key: int) -> bytes:
-    cipher = Cipher(CipherAlgorithms.TripleDES(key=str(key).encode().ljust(24)), CipherModes.CBC(b''))
+def encrypt_text(text: str, key: int) -> str:
+    cipher = Cipher(TripleDES(key=str(key).encode().ljust(24)), CipherModes.ECB())
     encryptor = cipher.encryptor()
-    return encryptor.update(data)
+    encrypted_data = encryptor.update(text.encode(encoding='utf-8'))
+    return b64encode(encrypted_data).decode(encoding='ascii')
 
-def get_decrypted_data(data: bytes, key: int) -> bytes:
-    cipher = Cipher(CipherAlgorithms.TripleDES(key=str(key).encode().ljust(24)), CipherModes.CBC(b''))
-    deencryptor = cipher.decryptor()
-    return deencryptor.update(data)
+def decrypt_text(encrypted_text: str, key: int) -> str:
+    cipher = Cipher(TripleDES(key=str(key).encode().ljust(24)), CipherModes.ECB())
+    decryptor = cipher.decryptor()
+    decrypted_data = decryptor.update(b64decode(encrypted_text.encode(encoding='ascii')))
+    return remove_PKCS_padding(decrypted_data).decode(encoding='utf-8')
+
+def remove_PKCS_padding(data: bytes) -> bytes:
+    if len(data) < PKCS_BLOCK_SIZE:
+        return data.rstrip(b'\x00')
+    padding_length = data[-1]
+    if padding_length == 0:
+        return data.rstrip(b'\x00')
+    if padding_length > PKCS_BLOCK_SIZE:
+        return data
+    if data[-padding_length:] != bytes([padding_length] * padding_length):
+        return data
+    return data[:-padding_length]
+
 
 def search_dict(dictionary: Any, keys: list[str]) -> object|None:
     for k in dictionary.keys():

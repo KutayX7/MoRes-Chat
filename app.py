@@ -25,6 +25,8 @@ SEND_BUTTON_BG_0 = '#7777cc'
 SEND_BUTTON_BG_1 = '#4343bb'
 FONT = 'ariel 10'
 
+MSPT = int(1000/TPS) # miliseconds per tick
+
 should_exit = False
 
 def exit_app():
@@ -80,11 +82,11 @@ class App(tk.Frame):
             message = message_server.pull_inbound_message()
             if message:
                 self.message_queue.put(message)
-                self.after(10, self.event_generate, "<<message_recieved>>")
+                self.after(MSPT, self.event_generate, "<<message_recieved>>")
         
         def tick():
-            self.after(int(1000/TPS), tick)
-            self.after(1, listen_to_messages)
+            self.after(MSPT, tick)
+            self.after(2, listen_to_messages)
             if should_exit:
                 master.destroy()
 
@@ -149,7 +151,7 @@ class UserList(tk.Frame):
         self._user_buttons: dict[User, UserListButton] = {}
         self.update()
     def update(self):
-        self.after(200, self.update)
+        self.after(MSPT, self.update)
         users = Users.get_all_users()
         for user in users:
             if user not in self._user_buttons and user.is_active():
@@ -197,7 +199,7 @@ class UserListButton(tk.Button):
             raise NotImplemented
         return self._get_username() < other._get_username()
     def update(self):
-        self.after(100, self.update)
+        self.after(MSPT, self.update)
         if self._selected:
             self.configure(bg=BUTTON_ACTIVE)
         elif self._hover:

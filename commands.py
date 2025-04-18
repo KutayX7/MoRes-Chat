@@ -47,8 +47,6 @@ def encryption_command(*args: *tuple[str]):
             config.PREFERRED_ENCRYPTION_LEVEL = 1
         if '-2' == argument:
             config.PREFERRED_ENCRYPTION_LEVEL = 2
-            if not p_set:
-                config.DH_P = config.DH_P2
         if '-g' == argument:
             value = int(args[i+1])
             if value < 2:

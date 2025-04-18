@@ -38,7 +38,7 @@ def generate_system_message(text: str):
 
 # A wrapper for ease of use
 class ChatConnection():
-    def __init__(self, to_username: str, encryption: dict[str, int]|None = {"base": DH_G, "modulo": DH_P2 if PREFERRED_ENCRYPTION_LEVEL == 2 else DH_P}):
+    def __init__(self, to_username: str, encryption: dict[str, int]|None = {"base": DH_G, "modulo": DH_P}):
         self._user: User = Users.get_user_by_username(to_username)
         self._encrypted = False
         if encryption != None:
@@ -166,7 +166,7 @@ async def handle_message_client(reader: asyncio.StreamReader, writer: asyncio.St
                 return
             cypher_text = decoded_object["encrypted_message"]
             assert(isinstance(cypher_text, str))
-            text = utils.get_decrypted_data(bytes(cypher_text, encoding="UTF-8"), shared_key).decode(encoding='utf-8')
+            text = utils.decrypt_text(cypher_text, shared_key)
             push_inbound_message(MessagePacket(Message(user.get_username(), text), ['<localhost>']))
     except Exception as e:
         utils.debug_print("Exception while handling TCP request:", e)
