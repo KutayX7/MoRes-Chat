@@ -36,31 +36,35 @@ def generate_backup_settings_file():
     finally:
         cache["settings"] = None
 
-# TODO: Add better error handling
-def get_setting(setting: str) -> object|None:
+def get_setting(setting: str, default: int|str|bool) -> object:
     settings = cache["settings"]
+    value = default
     if settings != None:
         if setting in settings:
-            return settings[setting]
-    value = None
-    try:
-        with open('./data/settings.json', 'r') as file:
-            settings = json.load(file)
-        cache["settings"] = settings
-        if setting in settings:
             value = settings[setting]
-        else:
-            raise RuntimeError(f'Setting {setting} not found in "data/settings.json"')
-    except OSError:
-        print_error("Failed to access 'data/settings.json'")
-        generate_backup_settings_file()
-        return get_setting(setting)
-    except RuntimeError as e:
-        print_error("RuntimeError:", e)
-    except Exception as e:
-        print_error("Exception:", e)
-        generate_backup_settings_file()
-        return get_setting(setting)
+    else:
+        try:
+            with open('./data/settings.json', 'r') as file:
+                settings = json.load(file)
+            cache["settings"] = settings
+            if setting in settings:
+                value = settings[setting]
+        except OSError:
+            print_error("Failed to access 'data/settings.json'")
+            generate_backup_settings_file()
+            return get_setting(setting, default=default)
+        except RuntimeError as e:
+            print_error("RuntimeError:", e)
+        except Exception as e:
+            print_error("Exception:", e)
+            generate_backup_settings_file()
+            return get_setting(setting, default=default)
+    
+    if type(value) != type(default):
+        set_setting(setting, default)
+        print_error(f'Setting "{setting}" type mismatch. Replacing it with the default value of {default}.')
+        return default
+    
     return value
 
 def set_setting(setting: str, value: object|None):
@@ -75,7 +79,7 @@ def set_setting(setting: str, value: object|None):
             json.dump(settings, file)
         success = True
     except Exception as e:
-        print_error("Failed to save settings:", e, level=1)
+        print_error("Failed to save settings:", e)
     return success
 
 def change_username(username: str):
@@ -84,12 +88,8 @@ def change_username(username: str):
     set_setting('username', username)
 
 def get_current_username() -> str:
-    username: Any = get_setting("username")
-    if isinstance(username, str):
-        return username
-    else:
-        set_setting('username', '')
-        return get_current_username()
+    username: str = get_setting("username", '')
+    return username
     
 
 def validate_username(username: Any) -> bool:
@@ -309,7 +309,7 @@ def extract_diffie_hellman_parameters_from_dict(dictionary: Any, default_g: int 
     return result
 
 def log_chat_message(message: Message):
-    if get_setting("log-chat-history"):
+    if get_setting("log-chat-history", default=True):
         text = "Date: %s, Author: %s, Message: %s" % (time.ctime(), message.get_author_username(), message.get_text_content())
         text = text.replace('\033[', "ESC [")
         text = text.replace('\033]', "ESC ]")
