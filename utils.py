@@ -26,10 +26,6 @@ cache = {
 def sanitize_text(text: str) -> str:
     return "".join(ch for ch in text if unicodedata.category(ch)[0]!="C" or ch == '\n')
 
-def debug_print(*args: object, level: int = 2, **kwargs: dict[str, object]):
-    if DEBUG_LEVEL >= level:
-        print_with_timestamp(*args, **kwargs)
-
 def generate_backup_settings_file():
     try:
         with open('./data/settings.json', 'w') as file:
@@ -56,13 +52,13 @@ def get_setting(setting: str) -> object|None:
         else:
             raise RuntimeError(f'Setting {setting} not found in "data/settings.json"')
     except OSError:
-        debug_print("Failed to access 'data/settings.json'", level=1)
+        print_error("Failed to access 'data/settings.json'")
         generate_backup_settings_file()
         return get_setting(setting)
     except RuntimeError as e:
-        debug_print("RuntimeError:", e, level=1)
+        print_error("RuntimeError:", e)
     except Exception as e:
-        debug_print("Exception:", e, level=1)
+        print_error("Exception:", e)
         generate_backup_settings_file()
         return get_setting(setting)
     return value
@@ -79,7 +75,7 @@ def set_setting(setting: str, value: object|None):
             json.dump(settings, file)
         success = True
     except Exception as e:
-        debug_print("ERROR: Failed to save settings:", e, level=1)
+        print_error("Failed to save settings:", e, level=1)
     return success
 
 def change_username(username: str):
@@ -110,18 +106,18 @@ def validate_username(username: Any) -> bool:
 def generate_key(offset: int = 2, modulo: int = 65500):
     return (secrets.randbelow(modulo * 3) + offset) % modulo
 
-async def send_unencrypted_data(text_data: str, address: str, port: int):
-    debug_print("Initiating unencrypted connection.")
+async def send_unencrypted_data(text_data: str, address: str, port: int) -> bool:
+    print_info("Initiating unencrypted connection.")
     writer = None
     try:
         _, writer = await asyncio.open_connection(address, port)
         writer.write(json.dumps({"unencrypted_message": text_data}).encode(encoding='utf-8'))
         writer.write_eof()
         await writer.drain()
-        debug_print("Successfully sent the unencrypted message.")
+        print_info("Successfully sent the unencrypted message.")
         return True
     except:
-        debug_print("Unencrypted connection failed.")
+        print_error("Unencrypted connection failed.")
         return False
     finally:
         if writer:
@@ -129,7 +125,7 @@ async def send_unencrypted_data(text_data: str, address: str, port: int):
             await writer.wait_closed()
 
 async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, address: str, port: int, our_private_key: int) -> bool:
-    debug_print("Initiating common DH key exchange")
+    print_info("Initiating common DH key exchange")
     writer = None
     writer2 = None
     try:
@@ -163,10 +159,10 @@ async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, addr
         writer2.write(json.dumps({"encrypted_message": encrypted_data}).encode())
         writer2.write_eof()
         await writer2.drain()
-        debug_print("Successfully sent the encrypted message.")
+        print_info("Successfully sent the encrypted message.")
         return True
     except Exception as e:
-        debug_print("Common DH failed. Error:", e, level=1)
+        print_error("Common DH failed. Error:", e)
         return False
     finally:
         if writer:
@@ -177,18 +173,19 @@ async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, addr
             await writer2.wait_closed()
 
 async def send_encrypted_data_with_custom_diffie_hellman(data_to_send: str, address: str, port: int, our_private_key: int, g: int, p: int) -> bool:
-    debug_print("Initiating custom DH key exchange")
+    print_info("Initiating custom DH key exchange")
+    print_info("G:", g, " P:", p)
     writer = None
     writer2 = None
     try:
         # generate our public key
         our_public_key = (g ** our_private_key) % p
-        debug_print("Our private key:", our_private_key)
-        debug_print("Our public key:", our_public_key)
+        print_info("Our private key:", our_private_key)
+        print_info("Our public key:", our_public_key)
 
         # establish connection
         reader, writer = await asyncio.open_connection(address, port)
-        debug_print("Connected to", writer.get_extra_info('peername'))
+        print_info("Connected to", writer.get_extra_info('peername'))
 
         # send our oublic key along with our custom g and p
         g_str = str(g)
@@ -200,25 +197,36 @@ async def send_encrypted_data_with_custom_diffie_hellman(data_to_send: str, addr
                 }).encode(encoding='utf-8'))
         writer.write_eof()
         await writer.drain()
-        debug_print("Sent public key")
+        print_info("Sent public key")
 
         # read their public key
         data = await asyncio.wait_for(reader.read(), timeout=10)
-        debug_print("Received peer's public key")
+        print_info("Received peer's public key")
+
+        # decode data
         decoded_data: dict = json.loads(data.decode(encoding='utf-8')) # type: ignore
+
+        # extract parameters
         peer_public_key = int(decoded_data["key"]) # type: ignore
         peer_dh_params = extract_diffie_hellman_parameters_from_dict(decoded_data)
 
-        # check if the key has any issues and if the peer supports our custom g and p values
-        assert(peer_public_key > 0 and peer_public_key < p)
-        assert(peer_dh_params["g"] == g)
-        assert(peer_dh_params["p"] == p)
+        print_info("Peer's public key: ", peer_public_key)
 
-        debug_print("Agreed on DH parameters. g:", g, ", p:", p)
+        # check if the key has any issues and if the peer supports our custom g and p values
+        if peer_dh_params["g"] != g:
+            raise RuntimeError(f'Peer g parameter mismatch. ({g}-{peer_dh_params["g"]})')
+        elif peer_dh_params["p"] != p:
+            raise RuntimeError(f'Peer p parameter mismatch. ({p}-{peer_dh_params["p"]})')
+        elif peer_public_key < 1:
+            raise RuntimeError(f'Peer public key ({peer_public_key}) is less than 1')
+        elif peer_public_key >= p:
+            raise RuntimeError(f'Peer public key ({peer_public_key}) is bigger than p ({p})')
+
+        print_info("Agreed on DH parameters. g:", g, ", p:", p)
 
         # generate a shared key using our private key and their public key
         shared_key: int = (peer_public_key ** our_private_key) % p
-        debug_print("Shared key:", shared_key)
+        print_info("Shared key:", shared_key)
 
         # encrypt the data using the shared key
         encrypted_data = encrypt_text(data_to_send, shared_key)
@@ -228,10 +236,10 @@ async def send_encrypted_data_with_custom_diffie_hellman(data_to_send: str, addr
         writer2.write(json.dumps({"encrypted_message": encrypted_data}).encode())
         writer2.write_eof()
         await writer2.drain()
-        debug_print("Successfully sent the encrypted message.")
+        print_info("Successfully sent the encrypted message.")
         return True
     except Exception as e:
-        debug_print("Custom DH failed. Error:", e, level=2)
+        print_error("Custom DH failed. Error:", e)
         return False
     finally:
         if writer:
@@ -279,8 +287,7 @@ def remove_PKCS_padding(data: bytes) -> bytes:
         return data
     return data[:-padding_length]
 
-
-def search_dict(dictionary: Any, keys: list[str]) -> object|None:
+def search_dict(dictionary: dict, keys: list[str]) -> object|None:
     for k in dictionary.keys():
         v = dictionary[k]
         if k in keys:
@@ -316,4 +323,4 @@ def log_chat_message(message: Message):
             with open("message_history.log", '+a', encoding='utf-8') as file:
                 file.write(text + '\n')
         except:
-            debug_print("Failed to log the message.")
+            print_error("Failed to log the message.")

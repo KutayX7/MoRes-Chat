@@ -34,7 +34,7 @@ def push_inbound_message(packet: MessagePacket):
 
 def generate_system_message(text: str):
     inbound_message_queue.put(MessagePacket(Message('<system>', text), ['<localhost>']))
-    utils.debug_print("System message:", text)
+    utils.print_info("System message:", text)
 
 # A wrapper for ease of use
 class ChatConnection():
@@ -67,7 +67,7 @@ async def broadcast_send_service():
     while True:
         username = utils.get_current_username()
         if not utils.validate_username(username):
-            utils.debug_print("WARNING: Detected invalid username.", level=1)
+            utils.print_warning("Detected invalid username.")
             generate_system_message("Please set a valid username with the '/username' command.")
         while not utils.validate_username(username):
             username = utils.get_current_username()
@@ -75,7 +75,7 @@ async def broadcast_send_service():
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as sock:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             sock.sendto((json.dumps({"username": username})).encode(), (SERVICE_BROADCAST_IP, SERVICE_BROADCAST_PORT))
-            utils.debug_print("Sent service broadcast on", (SERVICE_BROADCAST_IP, SERVICE_BROADCAST_PORT))
+            utils.print_info("Sent service broadcast on", (SERVICE_BROADCAST_IP, SERVICE_BROADCAST_PORT))
         await asyncio.sleep(8)
 
 def generate_online_message(user: User):
@@ -86,11 +86,11 @@ async def broadcast_recieve_service():
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     sock.setblocking(False)
     sock.bind(('', DISCOVERY_PORT))
-    utils.debug_print("Listening for service broadcast messages on port %d :" % (DISCOVERY_PORT), level=1)
+    utils.print_info("Listening for service broadcast messages on port %d :" % (DISCOVERY_PORT))
     while not should_exit:
         try:
             data, (ip, port) = sock.recvfrom(256)
-            utils.debug_print("Broadcast received from", ip, port)
+            utils.print_info("Broadcast received from", ip, port)
             decoded_data = json.loads(data.decode())
             username = decoded_data["username"]
             assert(utils.validate_username(username))
@@ -104,7 +104,7 @@ async def broadcast_recieve_service():
                         if not user.is_active():
                             generate_online_message(user)
                     else:
-                        utils.debug_print("WARNING: Skipped suspicious broadcast. Old ip: %s, New address: %s." % (user.get_ip(), ip))
+                        utils.print_warning("Skipped suspicious broadcast. Old ip: %s, New address: %s." % (user.get_ip(), ip))
                 else:
                     user.set_ip(ip)
                     user.update_last_seen()
@@ -115,7 +115,7 @@ async def broadcast_recieve_service():
         except OSError as e:
             pass # 99.9% socket blocking errors
         except Exception as e:
-            utils.debug_print("Exception while handling incoming broadcast:", e)
+            utils.print_error("Exception while handling incoming broadcast:", e)
         finally:
             await asyncio.sleep(0.1)
 
@@ -129,7 +129,7 @@ async def broadcast_service():
 async def handle_message_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     try:
         addr = writer.get_extra_info('peername')
-        utils.debug_print("Incoming TCP request from", addr)
+        utils.print_info("Incoming TCP request from", addr)
         ip: str = ''
         if len(addr) == 2:  # IPv4
             ip, _ = addr
@@ -147,13 +147,17 @@ async def handle_message_client(reader: asyncio.StreamReader, writer: asyncio.St
         decoded_object = json.loads(message)
         dh_params = utils.extract_diffie_hellman_parameters_from_dict(decoded_object, default_g=DH_G, default_p=DH_P)
         g, p = dh_params['g'], dh_params['p']
+        if g != DEFAULT_DH_G:
+            utils.print_info("Non-standard Diffie Hellman paramater, g: ", g)
+        if p != DEFAULT_DH_P:
+            utils.print_info("Non-standard Diffie Hellman paramater, p: ", p)
         if "key" in decoded_object: # diffie hellman key exhange + maybe encrypted message
             their_public_key = int(decoded_object["key"])
             private_key = utils.generate_key()
             public_key: int = (g ** private_key) % p
             shared_key: int = (their_public_key ** private_key) % p
             user.set_shared_key(shared_key)
-            writer.write(json.dumps({"key": str(public_key)}).encode(encoding='utf-8'))
+            writer.write(json.dumps({"key": str(public_key), 'g': g, 'p': p}).encode(encoding='utf-8'))
             writer.write_eof()
             await writer.drain()
         if "unencrypted_message" in decoded_object:
@@ -169,7 +173,7 @@ async def handle_message_client(reader: asyncio.StreamReader, writer: asyncio.St
             text = utils.decrypt_text(cypher_text, shared_key)
             push_inbound_message(MessagePacket(Message(user.get_username(), text), ['<localhost>']))
     except Exception as e:
-        utils.debug_print("Exception while handling TCP request:", e)
+        utils.print_error("Exception while handling TCP request:", e)
     finally:
         if writer:
             writer.close()
@@ -184,7 +188,7 @@ async def outbound_message_server():
                     connection = ChatConnection(receiver)
                     await connection.send_message(message_packet.message)
                 except Exception as e:
-                    utils.debug_print("Exception while sending an outbound message:", e, level=1)
+                    utils.print_error("Exception while sending an outbound message:", e)
             if message_packet.is_inbound():
                 push_inbound_message(message_packet)
             else:
