@@ -4,6 +4,7 @@ import asyncio
 import secrets
 from base64 import b64decode, b64encode
 from cryptography.hazmat.primitives.ciphers import Cipher, modes as CipherModes
+from cryptography.hazmat.primitives.padding import PKCS7
 from cryptography.hazmat.decrepit.ciphers.algorithms import TripleDES
 from typing import Any
 
@@ -266,24 +267,31 @@ async def send_encrypted_data_with_diffie_hellman(data_to_send: str, address: st
 def encrypt_text(text: str, key: int) -> str:
     cipher = Cipher(TripleDES(key=str(key).encode().ljust(24)), CipherModes.ECB())
     encryptor = cipher.encryptor()
-    encrypted_data = encryptor.update(text.encode(encoding='utf-8'))
-    return b64encode(encrypted_data).decode(encoding='ascii')
+    encoded_text = text.encode(encoding='utf-8')
+    encrypted_data = encryptor.update(pad_PKCS7(encoded_text)) + encryptor.finalize()
+    encrypted_string = b64encode(encrypted_data).decode(encoding='ascii')
+    test_unencrypted_string = decrypt_text(encrypted_string, key)
+
+    if text != test_unencrypted_string:
+        print_error("Encryption failed to preserve data. Result: ", test_unencrypted_string)
+        raise Exception("Encryption failed to preserve data.")
+    return encrypted_string
 
 def decrypt_text(encrypted_text: str, key: int) -> str:
     cipher = Cipher(TripleDES(key=str(key).encode().ljust(24)), CipherModes.ECB())
     decryptor = cipher.decryptor()
-    decrypted_data = decryptor.update(b64decode(encrypted_text.encode(encoding='ascii')))
-    return remove_PKCS_padding(decrypted_data).decode(encoding='utf-8')
+    decrypted_data = decryptor.update(b64decode(encrypted_text.encode(encoding='ascii'))) + decryptor.finalize()
+    return unpad_PKCS7(decrypted_data).decode(encoding='utf-8')
 
-def remove_PKCS_padding(data: bytes) -> bytes:
-    if len(data) < PKCS_BLOCK_SIZE:
-        return data
-    padding_length = data[-1]
-    if padding_length > PKCS_BLOCK_SIZE:
-        return data
-    if data[-padding_length:] != bytes([padding_length] * padding_length):
-        return data
-    return data[:-padding_length]
+def pad_PKCS7(data: bytes):
+    padder = PKCS7(64).padder()
+    padded_data = padder.update(data) + padder.finalize()
+    return padded_data
+
+def unpad_PKCS7(data: bytes):
+    unpadder = PKCS7(64).unpadder()
+    unpadded_data = unpadder.update(data) + unpadder.finalize()
+    return unpadded_data
 
 def search_dict(dictionary: dict, keys: list[str]) -> object|None:
     for k in dictionary.keys():
