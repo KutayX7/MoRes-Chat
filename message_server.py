@@ -52,7 +52,7 @@ class ChatConnection():
     async def send_message(self, message: Message):
         ip = self._user.get_ip()
         if self._encrypted:
-            result = await utils.send_encrypted_data_with_diffie_hellman(message.get_text_content(), ip, MESSAGING_PORT, self._private_key, self._p, self._g)
+            result = await utils.send_encrypted_data_with_diffie_hellman(message.get_text_content(), ip, MESSAGING_PORT, self._private_key, g=self._g, p=self._p)
             if result == 1:
                 self._p = DH_P
             elif result == 0:
