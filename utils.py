@@ -277,10 +277,8 @@ def decrypt_text(encrypted_text: str, key: int) -> str:
 
 def remove_PKCS_padding(data: bytes) -> bytes:
     if len(data) < PKCS_BLOCK_SIZE:
-        return data.rstrip(b'\x00')
+        return data
     padding_length = data[-1]
-    if padding_length == 0:
-        return data.rstrip(b'\x00')
     if padding_length > PKCS_BLOCK_SIZE:
         return data
     if data[-padding_length:] != bytes([padding_length] * padding_length):

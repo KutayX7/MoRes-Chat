@@ -142,6 +142,7 @@ async def handle_message_client(reader: asyncio.StreamReader, writer: asyncio.St
         user = Users.get_user_by_ip(ip)
         if not user:
             raise RuntimeError("Unknown user.")
+        username: str = user.get_username()
         data = await reader.read(utils.MAX_PACKET_SIZE)
         message = data.decode(encoding='utf-8')
         decoded_object = json.loads(message)
@@ -163,15 +164,15 @@ async def handle_message_client(reader: asyncio.StreamReader, writer: asyncio.St
         if "unencrypted_message" in decoded_object:
             text = decoded_object["unencrypted_message"]
             assert(type(text) == type(''))
-            push_inbound_message(MessagePacket(Message(user.get_username(), text), ['<localhost>']))
+            push_inbound_message(MessagePacket(Message(username, text), ['<localhost>']))
         if "encrypted_message" in decoded_object:
             shared_key = user.get_shared_key()
             if not shared_key:
                 return
             cypher_text = decoded_object["encrypted_message"]
-            assert(isinstance(cypher_text, str))
-            text = utils.decrypt_text(cypher_text, shared_key)
-            push_inbound_message(MessagePacket(Message(user.get_username(), text), ['<localhost>']))
+            if isinstance(cypher_text, str):
+                text = utils.decrypt_text(cypher_text, shared_key)
+                push_inbound_message(MessagePacket(Message(username, text), ['<localhost>']))
     except Exception as e:
         utils.print_error("Exception while handling TCP request:", e)
     finally:
