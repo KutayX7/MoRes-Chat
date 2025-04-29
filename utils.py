@@ -7,6 +7,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, modes as CipherModes
 from cryptography.hazmat.primitives.padding import PKCS7
 from cryptography.hazmat.decrepit.ciphers.algorithms import TripleDES
 from typing import Any
+from tkinter import Variable
 
 from console_utils import *
 from config import *
@@ -20,9 +21,11 @@ settings_template = """{
     "log-chat-history": true
 }"""
 
-cache = {
+_cache = {
     "settings": None
 }
+
+_setting_bindings: dict[str, list[Variable]] = {}
 
 def sanitize_text(text: str) -> str:
     return "".join(ch for ch in text if unicodedata.category(ch)[0]!="C" or ch == '\n')
@@ -35,10 +38,10 @@ def generate_backup_settings_file():
     except:
         raise RuntimeError("Failed to access 'data/settings.json' file.")
     finally:
-        cache["settings"] = None
+        _cache["settings"] = None
 
-def get_setting(setting: str, default: int|str|bool) -> object:
-    settings = cache["settings"]
+def get_setting(setting: str, default: int|float|str|bool) -> object:
+    settings = _cache["settings"]
     value = default
     if settings != None:
         if setting in settings:
@@ -47,7 +50,7 @@ def get_setting(setting: str, default: int|str|bool) -> object:
         try:
             with open('./data/settings.json', 'r') as file:
                 settings = json.load(file)
-            cache["settings"] = settings
+            _cache["settings"] = settings
             if setting in settings:
                 value = settings[setting]
         except OSError:
@@ -71,17 +74,27 @@ def get_setting(setting: str, default: int|str|bool) -> object:
 def set_setting(setting: str, value: object|None):
     success = False
     try:
-        if cache["settings"] == None:
+        if _cache["settings"] == None:
             with open('./data/settings.json', 'r') as file:
-                cache["settings"] = json.load(file)
-        settings = cache["settings"]
+                _cache["settings"] = json.load(file)
+        settings = _cache["settings"]
         settings[setting] = value
         with open('./data/settings.json', 'w') as file:
             json.dump(settings, file)
         success = True
+        if _setting_bindings.get(setting) != None:
+            for variable in _setting_bindings[setting]:
+                variable.set(value)
     except Exception as e:
         print_error("Failed to save settings:", e)
     return success
+
+def bind_variable_to_setting(variable: Variable, setting: str, default: int|float|str|bool) -> Variable:
+    if _setting_bindings.get(setting) == None:
+        _setting_bindings[setting] = []
+    _setting_bindings[setting].append(variable)
+    variable.set(get_setting(setting, default))
+    return variable
 
 def change_username(username: str):
     if not validate_username(username):

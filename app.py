@@ -3,6 +3,7 @@ import tkinter.font
 import tkinter.scrolledtext
 import queue
 from typing import Any
+from tkinter import StringVar, BooleanVar
 
 import utils
 import message_server
@@ -13,17 +14,7 @@ from user import User, Users
 from config import *
 
 # This module is entirely for the UI and its functions
-
 # TODO: Implement RichText
-
-BG_0 = '#2a2a2c'
-BG_1 = '#3f3f4a'
-BUTTON_BG_0 = '#30303a'
-BUTTON_BG_1 = '#222'
-BUTTON_ACTIVE = '#11e'
-SEND_BUTTON_BG_0 = '#7777cc'
-SEND_BUTTON_BG_1 = '#4343bb'
-FONT = 'ariel 10'
 
 MSPT = int(1000/TPS) # miliseconds per tick
 
@@ -36,32 +27,32 @@ def exit_app():
 class App(tk.Frame):
     def __init__(self, master: tk.Tk):
         super().__init__(master)
-        self['bg'] = BG_0
+
+        self.var_bg0 = utils.bind_variable_to_setting(tk.StringVar(), 'theme.background.color0', '#2a2a2c')
+        self.var_bg1 = utils.bind_variable_to_setting(tk.StringVar(), 'theme.background.color1', '#3f3f4a')
+        self.var_font = utils.bind_variable_to_setting(tk.StringVar(), 'theme.font', 'ariel 10')
+        self.var_fg = utils.bind_variable_to_setting(tk.StringVar(), 'theme.foreground', '#fff')
+        self.var_entry_highlight_color = utils.bind_variable_to_setting(tk.StringVar(), 'theme.entry.highlight.color', '#33f')
+        self.var_entry_insert_bg = utils.bind_variable_to_setting(tk.StringVar(), 'theme.entry.insert.background', '#fff')
+
         master.title("MoResChat")
         self.pack(ipadx=30, ipady=30, fill="both", expand=1)
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
-        self.chatlog = tkinter.scrolledtext.ScrolledText(self)
-        self.chatlog['bg'] = BG_1
-        self.chatlog['fg'] = '#ffffff'
-        self.chatlog['font'] = FONT
+        self.chatlog = tkinter.scrolledtext.ScrolledText(self, background=self.var_bg1.get(), foreground=self.var_fg.get(), font=self.var_font.get())
         self.chatlog['relief'] = "flat"
-        self.chatlog.configure(state="disabled", cursor='arrow', wrap=tk.WORD, font=('Arial', 10))
-        self.chatlog.vbar.configure(bg=BG_1)
+        self.chatlog.configure(state="disabled", cursor='arrow', wrap=tk.WORD)
         self.chatlog.tag_configure('system', foreground='#fe0', font=('Arial', 10, 'bold'))
         self.chatlog.tag_configure('user', foreground='#2de', font=('Arial', 10, 'bold'))
         self.chatlog.tag_configure('localuser', foreground='#d5e', font=('Arial', 10, 'bold'))
         self.chatlog.grid(column=0, row=0, padx=8, pady=8, sticky="news")
 
         self.text_input_frame = tk.Frame(self)
-        self.text_input_frame['bg'] = self['bg']
         self.text_input_frame.grid(column=0, row=1, sticky='we')
         self.text_input_frame.columnconfigure(0, weight=1)
 
-        self.entry = tk.Entry(self.text_input_frame, relief='flat', highlightthickness=1, highlightcolor='#3333ff', highlightbackground=BG_0, insertbackground='white', insertwidth=1)
-        self.entry['bg'] = BG_1
-        self.entry['fg'] = '#f0f0f0'
+        self.entry = tk.Entry(self.text_input_frame, relief='flat', highlightthickness=1, insertwidth=1)
         self.entry.grid(column=0, row=0, padx=8, pady=8, ipadx=6, ipady=6, sticky="ew")
 
         self.button = MessageSendButton(self.text_input_frame, command=self.send_message)
@@ -93,7 +84,17 @@ class App(tk.Frame):
         self.bind("<<message_recieved>>", self._on_message_recieved, '+')
         self.chatlog.bind('<1>', lambda _: self.chatlog.focus()) # enable highlighting on chatlog
 
+        self.update()
         tick()
+
+    def update(self):
+        self.after(MSPT, self.update)
+        self.configure(bg=self.var_bg0.get())
+        self.chatlog.configure(bg=self.var_bg1.get(), fg=self.var_fg.get(), font=self.var_font.get())
+        self.chatlog.vbar.configure(bg=self.var_bg0.get())
+        self.text_input_frame.configure(bg=self.var_bg0.get())
+        self.entry.configure(bg=self.var_bg1.get(), fg=self.var_fg.get(), font=self.var_font.get(), highlightcolor=self.var_entry_highlight_color.get(), highlightbackground=self.var_bg1.get(), insertbackground=self.var_entry_insert_bg.get())
+
     # TODO: Make this actually send messages to peers
     def send_message(self):
         text: str = self.entry.get()
@@ -137,14 +138,20 @@ class App(tk.Frame):
 class UserList(tk.Frame):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
-        self.configure(bg=BG_0, padx=4, pady=4)
+
+        self.var_bg0 = utils.bind_variable_to_setting(tk.StringVar(), 'theme.background.color0', '#2a2a2c')
+        self.var_bg1 = utils.bind_variable_to_setting(tk.StringVar(), 'theme.background.color1', '#3f3f4a')
+        self.var_fg = utils.bind_variable_to_setting(tk.StringVar(), 'theme.foreground', '#fff')
+        self.var_title = utils.bind_variable_to_setting(tk.StringVar(), 'theme.userlist.title.text', "Online Users")
+
+        self.configure(padx=4, pady=4)
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
 
-        self.label = tk.Label(self, text="Online Users", bg=BG_0, fg='#fff')
+        self.label = tk.Label(self)
         self.label.grid(row=0, column=0, pady=4, sticky='new')
 
-        self.user_list = tk.Frame(self, bg=BG_1, padx=2, pady=2)
+        self.user_list = tk.Frame(self, padx=2, pady=2)
         self.user_list.columnconfigure(0, weight=1)
         self.user_list.grid(row=1, column=0, sticky='news')
 
@@ -152,6 +159,10 @@ class UserList(tk.Frame):
         self.update()
     def update(self):
         self.after(MSPT, self.update)
+        self.configure(bg = self.var_bg0.get())
+        self.label.configure(bg = self.var_bg0.get(), fg = self.var_fg.get(), text = self.var_title.get())
+        self.user_list.configure(bg = self.var_bg1.get())
+
         users = Users.get_all_users()
         for user in users:
             if user not in self._user_buttons and user.is_active():
@@ -177,7 +188,13 @@ class UserList(tk.Frame):
 class UserListButton(tk.Button):
     def __init__(self, *args: Any, user: User, **kwargs: Any):
         super().__init__(*args, **kwargs)
-        self.configure(bg=BUTTON_BG_0, fg='#fff', border=0, anchor='w', command=self._on_command, text=user.get_username())
+
+        self.var_bg_idle = utils.bind_variable_to_setting(tk.StringVar(), 'theme.button.idle', '#30303a')
+        self.var_bg_hover = utils.bind_variable_to_setting(tk.StringVar(), 'theme.button.hover', '#222')
+        self.var_bg_selected = utils.bind_variable_to_setting(tk.StringVar(), 'theme.button.selected', '#11e')
+        self.var_fg = utils.bind_variable_to_setting(tk.StringVar(), 'theme.font.color', '#fff')
+
+        self.configure(border=0, anchor='w', command=self._on_command, text=user.get_username())
         self.bind('<Enter>', self._on_enter)
         self.bind('<Leave>', self._on_leave)
         self._hover = False
@@ -200,27 +217,39 @@ class UserListButton(tk.Button):
         return self._get_username() < other._get_username()
     def update(self):
         self.after(MSPT, self.update)
+        self.configure(fg = self.var_fg.get())
+        fg, bg, text = self.var_fg.get(), self.var_bg_idle.get(), ''
         if self._selected:
-            self.configure(bg=BUTTON_ACTIVE)
+            bg = self.var_bg_selected.get()
         elif self._hover:
-            self.configure(bg=BUTTON_BG_1)
-        else:
-            self.configure(bg=BUTTON_BG_0)
+            bg = self.var_bg_hover.get()
         if self.user.is_active():
-            self.configure(fg='#fff', text=self._get_username())
+            text = self._get_username()
         else:
-            self.configure(fg='#aaa', text=self._get_username() + " (Inactive)")
+            fg, text ='#aaa', self._get_username() + " (Inactive)"
+        self.configure(fg=fg, bg=bg, text=text)
 
 class MessageSendButton(tk.Button):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
-        self.configure(bg=SEND_BUTTON_BG_0, fg='#fff', border=0, anchor='center', text='> Send >')
-        self.bind('<Enter>', self._on_enter)
-        self.bind('<Leave>', self._on_leave)
-    def _on_enter(self, e: object) -> None:
-        self.configure(bg=SEND_BUTTON_BG_1)
-    def _on_leave(self, e: object) -> None:
-        self.configure(bg=SEND_BUTTON_BG_0)
+
+        self.var_bg0 = utils.bind_variable_to_setting(StringVar(), 'theme.button.send.idle', '#7777cc')
+        self.var_bg1 = utils.bind_variable_to_setting(StringVar(), 'theme.button.send.hover', '#4343bb')
+        self.var_fg = utils.bind_variable_to_setting(StringVar(), 'theme.button.send.foreground', '#fff')
+        self.var_text = utils.bind_variable_to_setting(StringVar(), 'theme.button.send.text', '> Send >')
+        self.var_hover = BooleanVar()
+        self.var_bg0.trace_add('write', self.update)
+        self.var_bg1.trace_add('write', self.update)
+        self.var_fg.trace_add('write', self.update)
+        self.var_text.trace_add('write', self.update)
+        self.var_hover.trace_add('write', self.update)
+
+        self.configure(border=0, anchor='center')
+        self.bind('<Enter>', lambda *args: self.var_hover.set(True))
+        self.bind('<Leave>', lambda *args: self.var_hover.set(False))
+        self.update()
+    def update(self, *args):
+        self.configure(fg = self.var_fg.get(), bg = self.var_bg1.get() if self.var_hover.get() else self.var_bg0.get(), text = self.var_text.get())
 
 #TODO: Implement these
 #TODO: RichText/Markdown, Image Attachments, Image Embeds
@@ -233,7 +262,7 @@ class ChatBox(tk.Frame):
         self.canvas = canvas = tk.Canvas(self)
         canvas.grid(row=0, column=0, sticky="news")
 
-        self.scrollbar = scrollbar = tk.Scrollbar(self, bg=BG_1, orient=tk.VERTICAL, command=self._on_scroll_ycommand)
+        self.scrollbar = scrollbar = tk.Scrollbar(self, bg=App.BG_1, orient=tk.VERTICAL, command=self._on_scroll_ycommand)
         scrollbar.grid(row=0, column=1, sticky="new")
 
         self.message_frames: list[MessageFrame] = []
