@@ -28,6 +28,7 @@ ENV = {
     # App API
     'get_active_users': lambda: list(filter(lambda user: user.is_active(), [user for user in Users.get_all_users()])),
     'get_setting': utils.get_setting,
+    'set_setting': utils.set_setting,
     'send_message': lambda user, text: message_server.outbound_message_queue.put(MessagePacket(Message('<localhost>', text), [user])),
 }
 
