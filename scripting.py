@@ -14,10 +14,13 @@ ENV = {
     '__builtins__': __builtins__,
     '__name__': '__main__',
 
-    'print': utils.print_info,
-
-    'map': map,
+    # python functions
     'filter': filter,
+    'map': map,
+    'print': print,
+    'type': type,
+
+    # types
     'float': float,
     'int': int,
     'list': list,
@@ -27,12 +30,16 @@ ENV = {
 
     # App API
     'get_active_users': lambda: list(filter(lambda user: user.is_active(), [user for user in Users.get_all_users()])),
+    'get_current_user': lambda: Users.get_user_by_username(utils.get_current_username()),
     'get_setting': utils.get_setting,
     'set_setting': utils.set_setting,
     'send_message': lambda user, text: message_server.outbound_message_queue.put(MessagePacket(Message('<localhost>', text), [user])),
+    'send_system_message': lambda text: message_server.push_inbound_message(MessagePacket(Message('<system>', text), ['<localhost>'])),
 }
 
-def run_script(script_name: str, *args) -> bool:
+def run_script(script_name: str, *args) -> str:
+    if not os.path.exists('./user_scripts/'):
+        return 'Folder `user_scripts`, does not exist.'
     if '..' in script_name or '/' in script_name or '\\' in script_name or '~' in script_name:
         raise RuntimeError('Invalid script name.')
     path = os.path.abspath('./user_scripts/' + script_name)
