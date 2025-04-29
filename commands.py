@@ -93,9 +93,17 @@ def restore_history(*args: *tuple[str]):
     except:
         return "Failed to restore the message history."
 
+def execute_script(*args: *tuple[str]) -> str:
+    try:
+        import scripting
+        return scripting.run_script(args[0], *args[1:])
+    except Exception as e:
+        return str(e)
+
 commands += [
     Command(command_help, ['/help', '/h'], "/help [command] : If provided, gives information about the specified command, otherwise returns information about all available commands. Aliases: /h"),
     Command(change_name, ['/username', '/u'], "/username <username> : Changes your username to <username>. Aliases: /u"),
+    Command(execute_script, ['/exec'], "/exec <script_name> [arguments]... : Executes the script in the 'user_scripts' folder with the given arguments."),
     Command(exit, ['/exit', '/bye', '/goodbye'], "/exit : Closes the app. Aliases: /bye, /goodbye"),
     Command(encryption_command, ['/encryption', '/bye', '/goodbye'], "/encryption <parameter1> [parameter2]... : Sets encryption paramaters. These will not save between restarts.\n Parameters: \n\t -0 \t\t no encryption \n\t -1 \t\t default, diffie-hellman with preset g and p \n\t -2 \t\t diffie-hellman with custom g and p \n\t -g <N> \t\t sets DH_G to N \n\t -p <N> \t\t sets DH_P to N \n\t --fallback \t\t enabled by default, allows the connection to fallback to unencrypted plaintext \n\t --no-fallback \t\t opposite of --fallback"),
     Command(restore_history, ['/restorehistory', '/rh'], "/restorehistory : Restores the entire message history from the 'message_history.log' file. Aliases: /rh")
