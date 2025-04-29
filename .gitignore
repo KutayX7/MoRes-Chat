@@ -2,6 +2,9 @@
 data/
 *.log
 
+# User scripts
+user_scripts/
+
 # VSCode
 .vscode/
 
