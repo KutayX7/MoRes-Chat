@@ -9,7 +9,7 @@ from config import ICON_PATH
 
 # Recommended Python version 3.13.1
 # Min Python version: 3.12
-# Required modules: asyncio, threading, tkinter, cryptography, shlex, json, socket, queue, copy, time, unicodedata, secrets, typing, os, uuid
+# Required modules: asyncio, threading, tkinter, cryptography, shlex, json, socket, queue, copy, time, unicodedata, secrets, typing, os, uuid, argparse
 
 # This is THE MAIN file for the whole app
 # Run this file with `python3 main.py` (on Linux) or `python main.py` (on Windows)

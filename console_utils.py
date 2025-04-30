@@ -70,10 +70,10 @@ def debug_print(*args: object, level: int = 2, **kwargs: dict[str, object]):
         print_with_timestamp(*args, **kwargs)
 
 def print_error(*args: object, level: int = 1):
-    print_with_timestamp("ERROR:", *args, color=COLORS['Red'])
+    debug_print("ERROR:", *args, color=COLORS['Red'])
 
 def print_warning(*args: object, level: int = 1):
-    print_with_timestamp("WARNING:", *args, color=COLORS['Yellow'])
+    debug_print("WARNING:", *args, color=COLORS['Yellow'])
 
 def print_info(*args: object, level: int = 2):
-    print_with_timestamp("INFO:", *args, color=COLORS['White'])
+    debug_print("INFO:", *args, color=COLORS['White'])
