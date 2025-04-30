@@ -5,6 +5,7 @@ import scripting
 from command import Command
 from message import Message
 from message_packet import MessagePacket
+from events import push_event, on_event
 
 commands: list[Command] = []
 
@@ -100,6 +101,21 @@ def execute_script(*args: *tuple[str]) -> str:
     except Exception as e:
         return str(e)
 
+def create_pseudo_command(aliases: list[str], help: str, event: str):
+    assert(isinstance(aliases, list))
+    assert(isinstance(help, str))
+    assert(isinstance(event, str))
+    for command in commands:
+        for alias in aliases:
+            assert(isinstance(alias, str))
+            if alias in command.aliases:
+                return False
+    def callback(*args):
+        push_event(event, *args)
+        return ''
+    command = Command(callback, aliases, help)
+    commands.append(command)
+
 commands += [
     Command(command_help, ['/help', '/h'], "/help [command] : If provided, gives information about the specified command, otherwise returns information about all available commands. Aliases: /h"),
     Command(change_name, ['/username', '/u'], "/username <username> : Changes your username to <username>. Aliases: /u"),
@@ -125,3 +141,5 @@ def run_command(text: str) -> bool:
     if text[0] == '/' and text[1] != ' ':
         message_server.generate_system_message("Unknown command. Please type '/help' for a list of available commands.")
     return False
+
+on_event('create_command', lambda _, *args, **kwargs: create_pseudo_command(*args))
