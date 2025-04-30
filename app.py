@@ -8,6 +8,7 @@ from tkinter import StringVar, BooleanVar
 import utils
 import message_server
 import commands
+import unicode_utils
 from message import Message
 from message_packet import MessagePacket
 from user import User, Users
@@ -100,7 +101,7 @@ class App(tk.Frame):
         text: str = self.entry.get()
         if text.isspace() or len(text) < 1:
             return
-        self.entry.delete(first=0, last=len(text))
+        self.entry.delete(first=0, last=len(text)*2)
         if commands.run_command(text):
             if utils.get_setting('commands.echo', True):
                 self.message_queue.put(MessagePacket(Message('<localhost>', text), ['<localhost>']))

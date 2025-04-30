@@ -9,6 +9,7 @@ from cryptography.hazmat.decrepit.ciphers.algorithms import TripleDES
 from typing import Any
 from tkinter import Variable
 
+import unicode_utils
 from console_utils import *
 from config import *
 from message import Message
@@ -259,6 +260,7 @@ async def send_encrypted_data_with_custom_diffie_hellman(data_to_send: str, addr
             await writer2.wait_closed()
 
 async def send_encrypted_data_with_diffie_hellman(data_to_send: str, address: str, port: int, our_private_key: int, g: int = DEFAULT_DH_G, p: int = DEFAULT_DH_P) -> int:
+    data_to_send = unicode_utils.with_surrogates(data_to_send)
     success = await send_encrypted_data_with_custom_diffie_hellman(data_to_send, address, port, our_private_key, g=g, p=p)
     if success:
         return 2
