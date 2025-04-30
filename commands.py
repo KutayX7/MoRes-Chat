@@ -1,6 +1,7 @@
 import config
 import message_server
 import utils
+import scripting
 from command import Command
 from message import Message
 from message_packet import MessagePacket
@@ -95,7 +96,6 @@ def restore_history(*args: *tuple[str]):
 
 def execute_script(*args: *tuple[str]) -> str:
     try:
-        import scripting
         return scripting.run_script(args[0], *args[1:])
     except Exception as e:
         return str(e)

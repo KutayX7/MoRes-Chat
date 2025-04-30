@@ -70,3 +70,8 @@ def run_script(script_name: str, *args) -> str:
             return 'Script failed to execute.'
     else:
         return f'Script `user_scripts/{script_name}` not found.'
+
+on_event('start_user_script', lambda _, script_name, *args, **kwargs: run_script(script_name, *args))
+
+if os.path.exists('./user_scripts/init.py'):
+    push_event('start_user_script', 'init.py')
