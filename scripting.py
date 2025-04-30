@@ -55,16 +55,16 @@ def run_script(script_name: str, *args) -> str:
         try:
             with open(path) as script:
                 content = script.read()
-                env = copy.copy(ENV)
-                env['args'] = copy.copy(args)
-                def call():
-                    try:
-                        exec(content, env, env)
-                    except Exception as e:
-                        utils.print_error(f'Exception in user script {script_name}: ', str(e))
-                thread = threading.Thread(None, call, f'user_script/{script_name}.{str(uuid.uuid4())}')
-                thread.daemon = True
-                thread.start()
+            env = copy.copy(ENV)
+            env['args'] = copy.copy(args)
+            def call():
+                try:
+                    exec(content, env, env)
+                except Exception as e:
+                    utils.print_error(f'Exception in user script {script_name}: ', str(e))
+            thread = threading.Thread(None, call, f'user_script/{script_name}.{str(uuid.uuid4())}')
+            thread.daemon = True
+            thread.start()
             return ''
         except Exception as e:
             return 'Script failed to execute.'
