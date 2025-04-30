@@ -7,7 +7,9 @@ INITIAL_SYSTEM_MESSAGE = "Type '/help' for a list of commands. To chat with othe
 DEBUG_LEVEL = 2
 MAX_PACKET_SIZE = 4096
 
-ALLOWED_CHARS_FOR_USERNAMES = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+# Username restrictions
+MIN_USERNAME_LENGTH = 3
+MAX_USERNAME_LENGTH = 20
 RESERVED_USERNAMES = ["", ":", "<>", "system", "<system>", "<s>", "localhost", "<localhost>"]
 
 SERVICE_BROADCAST_IP = '255.255.255.255'

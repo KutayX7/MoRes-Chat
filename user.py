@@ -31,7 +31,7 @@ class User():
         self._local = True
     def set_remote(self):
         self._local = False
-
+    
     def update_last_seen(self):
         self._last_seen = time.time()
     
@@ -47,7 +47,7 @@ class User():
         raise AttributeError('User "' + self.username + '" and localhost do not have a shared key.')
     def get_last_seen(self) -> float:
         return self._last_seen
-    
+
 class Users():
     users: list[User] = []
 

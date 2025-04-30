@@ -97,12 +97,11 @@ def change_username(username: str):
 def get_current_username() -> str:
     username: str = get_setting("username", '')
     return username
-    
 
 def validate_username(username: Any) -> bool:
     if type(username) != type("str"):
         return False
-    if len(username) < 3 or len(username) > 20:
+    if len(username) < MIN_USERNAME_LENGTH or len(username) > MAX_USERNAME_LENGTH:
         return False
     if not username.isprintable():
         return False
