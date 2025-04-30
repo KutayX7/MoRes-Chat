@@ -219,7 +219,6 @@ class UserListButton(tk.Button):
         return self._get_username() < other._get_username()
     def update(self):
         self.after(MSPT, self.update)
-        self.configure(fg = self.var_fg.get())
         fg, bg, text = self.var_fg.get(), self.var_bg_idle.get(), ''
         if self._selected:
             bg = self.var_bg_selected.get()
