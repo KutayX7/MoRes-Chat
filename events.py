@@ -19,9 +19,9 @@ class EventConnection:
                 self._thread_event.clear()
                 if not self._connected:
                     break
+                args, kwargs = _threading_event_args.pop(self._thread_event)
                 if once:
                     self.disconnect()
-                args, kwargs = _threading_event_args.pop(self._thread_event)
                 callable(event_name, *args, **kwargs)
         self._thread = threading.Thread(None, job)
         self._thread.daemon = True
@@ -48,6 +48,23 @@ def on_event(event: str, callable):
 def on_event_once(event: str, callable):
     connection = EventConnection(event, callable, True)
     return connection
+
+def wait_event(event: str) -> tuple[str, *tuple[object, ...], dict]|tuple[str, *tuple[object, ...]]|str:
+    thread_event = threading.Event()
+    args_dict = dict()
+    def callback(event_name, *args, **kwargs):
+        args_dict['event'] = event_name
+        args_dict['args'] = args
+        args_dict['kwargs'] = kwargs
+        thread_event.set()
+    on_event_once(event, callback)
+    thread_event.wait()
+    if len(args_dict['kwargs']) > 0:
+        return (args_dict['event'], *(args_dict['args']), args_dict['kwargs'])
+    elif len(args_dict['args']) > 0:
+        return (args_dict['event'], *(args_dict['args']))
+    else:
+        return args_dict['event']
 
 if True:
     def dispatcher_work():
