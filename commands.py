@@ -136,7 +136,7 @@ commands += [
     Command(restore_history, ['/restorehistory', '/rh'], "/restorehistory : Restores the entire message history from the 'message_history.log' file. Aliases: /rh")
 ]
 
-def run_command(text: str) -> bool:
+def run_command(text: str, echo: bool = True) -> bool:
     if len(text) < 2:
         return False
     for command in commands:
@@ -146,11 +146,12 @@ def run_command(text: str) -> bool:
         except:
             break
         if (result != None) and (result != False):
-            if isinstance(result, str) and len(result) > 0:
+            if echo and isinstance(result, str) and len(result) > 0:
                 message_server.generate_system_message(result)
             return True
-    if text[0] == '/' and text[1] != ' ':
+    if echo and text[0] == '/' and text[1] != ' ':
         message_server.generate_system_message("Unknown command. Please type '/help' for a list of available commands.")
     return False
 
 on_event('create_command', lambda _, *args, **kwargs: create_pseudo_command(*args))
+on_event('execute_command', lambda _, *args, **kwargs: run_command(*args, **kwargs))
