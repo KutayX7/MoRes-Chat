@@ -2,6 +2,7 @@ import config
 import message_server
 import utils
 import scripting
+import themes
 from command import Command
 from message import Message
 from message_packet import MessagePacket
@@ -9,6 +10,16 @@ from events import push_event, on_event
 from user import Users
 
 commands: list[Command] = []
+
+def change_theme(theme_name: str) -> str:
+    if not themes.is_valid_theme(theme_name):
+        return f"Invalid theme: {theme_name}"
+    
+    theme_settings = themes.get_theme_settings(theme_name)
+    for key, value in theme_settings.items():
+        utils.set_setting(key, value)
+    
+    return f"Theme has been successfully changed to {theme_name}"
 
 def change_name(new_username: str) -> str:
     if not utils.validate_username(new_username):
@@ -131,6 +142,7 @@ commands += [
     Command(command_help, ['/help', '/h'], "/help [command] : If provided, gives information about the specified command, otherwise returns information about all available commands. Aliases: /h"),
     Command(change_name, ['/username', '/u'], "/username <username> : Changes your username to <username>. Aliases: /u"),
     Command(execute_script, ['/exec'], "/exec <script_name> [arguments]... : Executes the script in the 'user_scripts' folder with the given arguments."),
+    Command(change_theme, ['/theme', '/t'], "/theme <theme_name> : Changes the application theme to the specified theme. Themes available are dark, light, pink, purple, red, green, blue. Aliases: /t"),
     Command(exit, ['/exit', '/bye', '/goodbye'], "/exit : Closes the app. Aliases: /bye, /goodbye"),
     Command(encryption_command, ['/encryption', '/bye', '/goodbye'], "/encryption <parameter1> [parameter2]... : Sets encryption paramaters. These will not save between restarts.\n Parameters: \n\t -0 \t\t no encryption \n\t -1 \t\t default, diffie-hellman with preset g and p \n\t -2 \t\t diffie-hellman with custom g and p \n\t -g <N> \t\t sets DH_G to N \n\t -p <N> \t\t sets DH_P to N \n\t --fallback \t\t enabled by default, allows the connection to fallback to unencrypted plaintext \n\t --no-fallback \t\t opposite of --fallback"),
     Command(restore_history, ['/restorehistory', '/rh'], "/restorehistory : Restores the entire message history from the 'message_history.log' file. Aliases: /rh")
