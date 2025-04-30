@@ -1,5 +1,7 @@
 import os
 import copy
+import threading
+import uuid
 
 import utils
 import message_server
@@ -49,7 +51,9 @@ def run_script(script_name: str, *args) -> str:
                 content = script.read()
                 env = copy.copy(ENV)
                 env['args'] = copy.copy(args)
-                exec(content, env, env)
+                thread = threading.Thread(None, exec, f'user_script/{script_name}.{str(uuid.uuid4())}', [content, env, env])
+                thread.daemon = True
+                thread.start()
             return ''
         except Exception as e:
             return 'Script failed to execute.'
