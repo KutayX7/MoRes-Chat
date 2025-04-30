@@ -84,7 +84,7 @@ def encryption_command(*args: *tuple[str]) -> str:
 # TODO: Add options to filter messages
 def restore_history(*args: *tuple[str]):
     try:
-        with open('message_history.log', mode='r') as log:
+        with open('message_history.log', mode='r', encoding='utf-8') as log:
             while True:
                 line = log.readline()
                 if len(line) > 40:
