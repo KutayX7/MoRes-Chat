@@ -102,8 +102,9 @@ class App(tk.Frame):
             return
         self.entry.delete(first=0, last=len(text))
         if commands.run_command(text):
-            self.message_queue.put(MessagePacket(Message('<localhost>', text), ['<localhost>']))
-            self.after(1, self.event_generate, "<<message_recieved>>")
+            if utils.get_setting('commands.echo', True):
+                self.message_queue.put(MessagePacket(Message('<localhost>', text), ['<localhost>']))
+                self.after(1, self.event_generate, "<<message_recieved>>")
         else:
             msg = MessagePacket(Message('<localhost>', text), self.user_list.get_selected_usernames())
             message_server.outbound_message_queue.put(msg)
