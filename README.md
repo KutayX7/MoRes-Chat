@@ -4,8 +4,13 @@ A simple local network chat app made for a school project.
 ## ✨ Features
 * 📔 User list (allows you to see available users)
 * 💬 Chat with other users
-* ⌨️ Slash commands (type $${\color{lightgreen}\texttt{\textsf{/help }}}$$ in chat to see a list of commands)
-* 🔐 Basic message content encryption during transmit (**WARNING**: NOT SECURE due to given project requirements)
+* ⌨️ Slash commands
+  - Type $${\color{lightgreen}\texttt{\textsf{/help }}}$$ in chat to see a list of commands
+* 🔐 Basic message content encryption during transmit
+  - **WARNING**: NOT SECURE due to given project requirements
+* 🐍 User scripts
+  - User scripts allows the user to add their $${\color{#0af}py\color{#ff0}thon}$$ scripts to extend the capabilities of the app
+  - Add your script to the `user_scripts` folder (generated after first run) then use the `/exec` slash comamnd to execute your script
 
 More to be added
 
