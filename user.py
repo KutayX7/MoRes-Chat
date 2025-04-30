@@ -92,6 +92,19 @@ class Users():
         user.set_ip(ip)
 
     @staticmethod
+    def rename_user(user: User|str, new_username: str):
+        if not isinstance(new_username, str):
+            raise Exception('Bad argument #2: `new_username` should be a str')
+        if Users.check_username(new_username):
+            raise RuntimeError(f'Another user already has the username "{new_username}"')
+        if isinstance(user, str):
+            user = Users.get_user_by_username(user)
+        if isinstance(user, User):
+            if not user.is_local():
+                raise Exception('Can not rename an remote user')
+            user.username = new_username
+
+    @staticmethod
     def get_all_users():
         return Users.users.copy()
     

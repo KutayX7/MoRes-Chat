@@ -6,12 +6,23 @@ from command import Command
 from message import Message
 from message_packet import MessagePacket
 from events import push_event, on_event
+from user import Users
 
 commands: list[Command] = []
 
-def change_name(name: str) -> str:
-    utils.change_username(name)
-    return ("Your username has been successfully changed to " + name)
+def change_name(new_username: str) -> str:
+    if not utils.validate_username(new_username):
+        return 'Invalid username!'
+    current_username = utils.get_current_username()
+    if Users.check_username(current_username):
+        current_user = Users.get_user_by_username(current_username)
+        if current_user.is_remote():
+            return f'The username {new_username} has already taken by another user.'
+        Users.rename_user(current_user, new_username)
+    else:
+        utils.set_setting('username', new_username)
+    utils.change_username(new_username)
+    return f'Your username has been successfully changed to {new_username}'
 
 def exit(*args: *tuple[str]):
     import app
