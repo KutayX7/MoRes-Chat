@@ -8,6 +8,7 @@ import message_server
 from message import Message
 from message_packet import MessagePacket
 from user import User, Users
+from events import on_event, on_event_once, push_event
 
 # The custom environment for the scripts
 # NOTE: This part is not meant to be secure in any way. Scripts can import modules.
@@ -37,6 +38,9 @@ ENV = {
     'set_setting': utils.set_setting,
     'send_message': lambda user, text: message_server.outbound_message_queue.put(MessagePacket(Message('<localhost>', text), [user])),
     'send_system_message': lambda text: message_server.push_inbound_message(MessagePacket(Message('<system>', text), ['<localhost>'])),
+    'bind_event': lambda event_name, callable: on_event(event_name, callable),
+    'bind_event_once': lambda event_name, callable: on_event_once(event_name, callable),
+    'send_event': lambda event_name, *args, **kwargs: push_event(event_name, *args, **kwargs)
 }
 
 def run_script(script_name: str, *args) -> str:
@@ -51,7 +55,12 @@ def run_script(script_name: str, *args) -> str:
                 content = script.read()
                 env = copy.copy(ENV)
                 env['args'] = copy.copy(args)
-                thread = threading.Thread(None, exec, f'user_script/{script_name}.{str(uuid.uuid4())}', [content, env, env])
+                def call():
+                    try:
+                        exec(content, env, env)
+                    except Exception as e:
+                        utils.print_error(f'Exception in user script {script_name}: ', str(e))
+                thread = threading.Thread(None, call, f'user_script/{script_name}.{str(uuid.uuid4())}')
                 thread.daemon = True
                 thread.start()
             return ''

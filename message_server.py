@@ -9,6 +9,7 @@ from message import Message
 from message_packet import MessagePacket
 from user import User, Users
 from config import *
+from events import push_event
 
 inbound_message_queue: SimpleQueue[MessagePacket] = SimpleQueue()
 outbound_message_queue: SimpleQueue[MessagePacket] = SimpleQueue()
@@ -31,10 +32,12 @@ def pull_outbound_message() -> MessagePacket|None:
 def push_inbound_message(packet: MessagePacket):
     utils.log_chat_message(packet.message)
     inbound_message_queue.put(packet)
+    push_event('on_inbound_message', packet.message)
 
 def generate_system_message(text: str):
     inbound_message_queue.put(MessagePacket(Message('<system>', text), ['<localhost>']))
     utils.print_info("System message:", text)
+    push_event('on_system_message', text)
 
 # A wrapper for ease of use
 class ChatConnection():
@@ -79,7 +82,9 @@ async def broadcast_send_service():
         await asyncio.sleep(8)
 
 def generate_online_message(user: User):
-    generate_system_message("User %s is now online!" % user.get_username())
+    if user.is_remote():
+        generate_system_message(f'User {user.get_username()} is now online!')
+    push_event('on_user_online', user)
 
 async def broadcast_recieve_service():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -109,9 +114,11 @@ async def broadcast_recieve_service():
                     user.set_ip(ip)
                     user.update_last_seen()
             else:
-                user = Users.create_user(username)
+                user = Users.create_user(username, local = utils.get_current_username() == username)
                 user.set_ip(ip)
                 user.update_last_seen()
+                push_event('on_new_user', user)
+                generate_online_message(user)
         except OSError as e:
             pass # 99.9% socket blocking errors
         except Exception as e:

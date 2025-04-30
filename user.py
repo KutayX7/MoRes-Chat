@@ -1,25 +1,25 @@
 import time
 
-AUTO_CREATE_USERS = False
-
 class User():
-    def __init__(self, username: str):
+    def __init__(self, username: str, local: bool):
         assert(username)
         assert(type(username) == type(''))
         self.username = username
         self._ip = 'NA'
         self._shared_key = 0
         self._last_seen = -1.0
+        self._local = local
     
     def has_ip(self):
         return self._ip != 'NA'
     def has_shared_key(self):
         return self._shared_key > 0
     
+    def is_local(self) -> bool:
+        return self._local
     def is_remote(self) -> bool:
-        if self._ip not in ['127.0.0.1', '0.0.0.0', 'localhost', '::', '0::0']:
-            return True
-        return False
+        return not self._local
+    
     def is_active(self) -> bool:
         return (self._last_seen + 10) > time.time()
     
@@ -27,6 +27,10 @@ class User():
         self._ip = ip
     def set_shared_key(self, key: int):
         self._shared_key = key
+    def set_local(self):
+        self._local = True
+    def set_remote(self):
+        self._local = False
 
     def update_last_seen(self):
         self._last_seen = time.time()
@@ -48,10 +52,10 @@ class Users():
     users: list[User] = []
 
     @staticmethod
-    def create_user(username: str):
+    def create_user(username: str, local: bool):
         if Users.check_username(username):
             raise RuntimeError('User "' + username + '" already exist.')
-        user = User(username)
+        user = User(username, local)
         user.update_last_seen()
         Users.users.append(user)
         return user
@@ -68,9 +72,7 @@ class Users():
         for user in Users.users:
             if user.get_username() == username:
                 return user
-        if AUTO_CREATE_USERS:
-            Users.create_user(username)
-        raise RuntimeError('User "' + username + '" not found')
+        raise RuntimeError('User "' + username + '" does not exist')
 
     @staticmethod
     def get_user_by_ip(ip: str) -> User|None:
