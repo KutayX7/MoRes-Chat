@@ -53,6 +53,9 @@ class ChatConnection():
     def reset_private_key(self):
         self._private_key = utils.generate_key()
     async def send_message(self, message: Message):
+        if not self._user.is_active():
+            generate_system_message(f'Failed to send the message to {self._user.get_username()} because the user is offline.')
+            return
         ip = self._user.get_ip()
         if self._encrypted:
             result = await utils.send_encrypted_data_with_diffie_hellman(message.get_text_content(), ip, MESSAGING_PORT, self._private_key, g=self._g, p=self._p)
