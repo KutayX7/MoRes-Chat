@@ -11,7 +11,6 @@ ICON_PATH = "./placeholder_app_icon_2_16x16.png"
 INITIAL_SYSTEM_MESSAGE = "Type '/help' for a list of commands. To chat with other users, select them in the online users list. Only selected online users can receive your messages."
 
 DEBUG_LEVEL = args.debug_level
-MAX_PACKET_SIZE = 4096
 
 # Username restrictions
 MIN_USERNAME_LENGTH = 3

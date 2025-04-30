@@ -150,7 +150,7 @@ async def handle_message_client(reader: asyncio.StreamReader, writer: asyncio.St
         if not user:
             raise RuntimeError("Unknown user.")
         username: str = user.get_username()
-        data = await reader.read(utils.MAX_PACKET_SIZE)
+        data = await asyncio.wait_for(reader.read(), timeout=10)
         message = data.decode(encoding='utf-8')
         decoded_object = json.loads(message)
         dh_params = utils.extract_diffie_hellman_parameters_from_dict(decoded_object, default_g=DH_G, default_p=DH_P)
