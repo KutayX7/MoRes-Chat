@@ -6,7 +6,9 @@ class MessagePacket():
         self.message = message
         self.receivers = receivers.copy()
     def is_inbound(self):
-        return ('<localhost>' in self.receivers)
+        if ('<localhost>' in self.receivers) or (utils.get_current_username() in self.receivers):
+            return True
+        return False
     def get_outbound_receivers(self):
         result: list[str] = []
         current_username = utils.get_current_username()

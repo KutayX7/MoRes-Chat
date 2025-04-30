@@ -9,6 +9,9 @@ from message import Message
 from message_packet import MessagePacket
 from user import User, Users
 from events import on_event, on_event_once, push_event, wait_event
+from attachment import Attachment
+from message import Message
+from message_packet import MessagePacket
 
 # The custom environment for the scripts
 # NOTE: This part is not meant to be secure in any way. Scripts can import modules.
@@ -33,11 +36,14 @@ ENV = {
 
     # App API
     'shared_dict': dict(),
+    'Attachment': Attachment,
+    'Message': Message,
+    'MessagePacket': MessagePacket,
     'get_active_users': lambda: list(filter(lambda user: user.is_active(), [user for user in Users.get_all_users()])),
     'get_current_user': lambda: Users.get_user_by_username(utils.get_current_username()),
     'get_setting': utils.get_setting,
     'set_setting': utils.set_setting,
-    'send_message': lambda user, text: message_server.outbound_message_queue.put(MessagePacket(Message('<localhost>', text), [user])),
+    'send_message': lambda user, text: message_server.outbound_message_queue.put(MessagePacket(Message('<localhost>', text), [user.get_username()])),
     'send_system_message': lambda text: message_server.push_inbound_message(MessagePacket(Message('<system>', text), ['<localhost>'])),
     'bind_event': lambda event_name, callable: on_event(event_name, callable),
     'bind_event_once': lambda event_name, callable: on_event_once(event_name, callable),

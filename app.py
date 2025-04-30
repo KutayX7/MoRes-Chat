@@ -106,7 +106,7 @@ class App(tk.Frame):
                 self.message_queue.put(MessagePacket(Message('<localhost>', text), ['<localhost>']))
                 self.after(1, self.event_generate, "<<message_recieved>>")
         else:
-            msg = MessagePacket(Message('<localhost>', text), self.user_list.get_selected_usernames())
+            msg = MessagePacket(Message('<localhost>', text), self.user_list.get_selected_usernames() + ['<localhost>'])
             message_server.outbound_message_queue.put(msg)
     
     def _on_message_recieved(self, e: object):

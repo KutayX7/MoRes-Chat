@@ -9,7 +9,7 @@ from message import Message
 from message_packet import MessagePacket
 from user import User, Users
 from config import *
-from events import push_event
+from events import push_event, on_event
 
 inbound_message_queue: SimpleQueue[MessagePacket] = SimpleQueue()
 outbound_message_queue: SimpleQueue[MessagePacket] = SimpleQueue()
@@ -199,8 +199,6 @@ async def outbound_message_server():
                     utils.print_error("Exception while sending an outbound message:", e)
             if message_packet.is_inbound():
                 push_inbound_message(message_packet)
-            else:
-                push_inbound_message(MessagePacket(message_packet.message, ['<localhost>']))
         await asyncio.sleep(0.01)
 
 async def run_messaging_server():
@@ -225,6 +223,11 @@ async def main():
 def exit():
     global should_exit
     should_exit = True
+
+def _on_send_mesage_packet(_, message_packet):
+    assert(isinstance(message_packet, MessagePacket))
+    outbound_message_queue.put(message_packet)
+on_event('send_message_packet', _on_send_mesage_packet)
 
 # NOTE: Normally, this module should not be used as main. This is for testing purposes only.
 if __name__ == "__main__":
