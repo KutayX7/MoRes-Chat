@@ -73,7 +73,7 @@ def set_setting(setting: str, value: object|None):
         settings = _cache["settings"]
         settings[setting] = value
         with open('./data/settings.json', 'w') as file:
-            json.dump(settings, file)
+            json.dump(settings, file, indent=4)
         success = True
         if _setting_bindings.get(setting) != None:
             for variable in _setting_bindings[setting]:
