@@ -19,6 +19,8 @@ from config import ICON_PATH
 def setup_dir():
     if not os.path.exists('./data/'):
         os.makedirs('./data')
+    if not os.path.exists('./user_scripts/'):
+        os.makedirs('./user_scripts')
 
 def setup_tkinter():
     root = tk.Tk()
