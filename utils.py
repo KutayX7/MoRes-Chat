@@ -14,13 +14,6 @@ from config import *
 from message import Message
 from constants import *
 
-settings_template = """{
-    "username": "",
-    "allow-embeds": true,
-    "encryption-level": 1,
-    "log-chat-history": true
-}"""
-
 _cache = {
     "settings": None
 }
@@ -33,7 +26,7 @@ def sanitize_text(text: str) -> str:
 def generate_backup_settings_file():
     try:
         with open('./data/settings.json', 'w') as file:
-            template = json.loads(settings_template)
+            template = json.loads("{}")
             json.dump(template, file)
     except:
         raise RuntimeError("Failed to access 'data/settings.json' file.")
@@ -328,7 +321,7 @@ def extract_diffie_hellman_parameters_from_dict(dictionary: Any, default_g: int 
     return result
 
 def log_chat_message(message: Message):
-    if get_setting("log-chat-history", default=True):
+    if get_setting('chat.log.enabled', default=True):
         text = "Date: %s, Author: %s, Message: %s" % (time.ctime(), message.get_author_username(), message.get_text_content())
         text = text.replace('\033[', "ESC [")
         text = text.replace('\033]', "ESC ]")
