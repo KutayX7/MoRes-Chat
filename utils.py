@@ -107,6 +107,9 @@ def validate_username(username: Any) -> bool:
         return False
     if username in RESERVED_USERNAMES:
         return False
+    for char in BANNED_CHARS_FOR_USERNAMES:
+        if char in username:
+            return False
     return True
 
 def generate_key(offset: int = 2, modulo: int = 65500):
