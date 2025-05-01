@@ -3,12 +3,12 @@ import tkinter.font
 import tkinter.scrolledtext
 import queue
 from typing import Any
-from tkinter import StringVar, BooleanVar
+from tkinter import StringVar, BooleanVar, font
 
 import utils
 import message_server
 import commands
-import unicode_utils
+import markdown
 from message import Message
 from message_packet import MessagePacket
 from user import User, Users
@@ -44,9 +44,36 @@ class App(tk.Frame):
         self.chatlog = tkinter.scrolledtext.ScrolledText(self, background=self.var_bg1.get(), foreground=self.var_fg.get(), font=self.var_font.get())
         self.chatlog['relief'] = "flat"
         self.chatlog.configure(state="disabled", cursor='arrow', wrap=tk.WORD)
+
+        # user highlighting
         self.chatlog.tag_configure('system', foreground='#fe0', font=('Arial', 10, 'bold'))
         self.chatlog.tag_configure('user', foreground='#2de', font=('Arial', 10, 'bold'))
         self.chatlog.tag_configure('localuser', foreground='#d5e', font=('Arial', 10, 'bold'))
+
+        # markdown
+        fonts = {
+        'underline+bold+italics': font.Font(family='Arial', size=10, weight='bold', slant='italic', underline=True),
+        'underline+bold': font.Font(family='Arial', size=10, weight='bold', underline=True),
+        'underline+italics': font.Font(family='Arial', size=10, slant='italic', underline=True),
+        'bold+italics': font.Font(family='Arial', size=10, weight='bold', slant='italic'),
+        'multiline_codeblock': font.Font(family='Consolas', size=10),
+        'bold': font.Font(family='Arial', size=10, weight='bold'),
+        'strikethrough': font.Font(family='Arial', size=10, overstrike=True),
+        'codeblock': font.Font(family='Consolas', size=10),
+        'italics': font.Font(family='Arial', size=10, slant='italic'),
+        }
+
+        self.chatlog.tag_configure('normal', font=('Arial', 10))
+        self.chatlog.tag_configure('underline+bold+italics', font=fonts['underline+bold+italics'])
+        self.chatlog.tag_configure('underline+bold', font=fonts['underline+bold'])
+        self.chatlog.tag_configure('underline+italics', font=fonts['underline+italics'])
+        self.chatlog.tag_configure('bold+italics', font=fonts['bold+italics'])
+        self.chatlog.tag_configure('multiline_codeblock', font=fonts['multiline_codeblock'], background='#444')
+        self.chatlog.tag_configure('bold', font=fonts['bold'])
+        self.chatlog.tag_configure('strikethrough', font=fonts['strikethrough'])
+        self.chatlog.tag_configure('codeblock', font=fonts['codeblock'], background='#444')
+        self.chatlog.tag_configure('italics', font=fonts['italics'])
+
         self.chatlog.grid(column=0, row=0, padx=8, pady=8, sticky="news")
 
         self.text_input_frame = tk.Frame(self)
@@ -135,7 +162,19 @@ class App(tk.Frame):
                     self.chatlog.insert(tk.END, username + ": ", 'localuser')
                 else:
                     self.chatlog.insert(tk.END, username + ": ", 'user')
-                self.chatlog.insert(tk.END, formatted_text + '\n')
+                parsed_text = markdown.parse_markdown(formatted_text)
+                for wordblock, tag in parsed_text:
+                    if tag == 'multiline codeblock':
+                        max_width = 0
+                        for line in wordblock.split('\n'):
+                            max_width = max(max_width, len(line))
+                        self.chatlog.insert(tk.END, ' \n' , 'normal')
+                        for line in wordblock.split('\n'):
+                            self.chatlog.insert(tk.END, line + (' ' * (max_width - len(line))) , 'codeblock')
+                            self.chatlog.insert(tk.END, ' \n' , 'normal')
+                    else:
+                        self.chatlog.insert(tk.END, wordblock, tag)
+                self.chatlog.insert(tk.END, '\n', 'normal')
                 self.chatlog.configure(state="disabled")
 
 class UserList(tk.Frame):
