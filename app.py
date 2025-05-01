@@ -52,6 +52,9 @@ class App(tk.Frame):
 
         # markdown
         fonts = {
+        'header1': font.Font(family='Arial', size=18, weight='bold'),
+        'header2': font.Font(family='Arial', size=14, weight='bold'),
+        'header3': font.Font(family='Arial', size=12, weight='bold'),
         'underline+bold+italics': font.Font(family='Arial', size=10, weight='bold', slant='italic', underline=True),
         'underline+bold': font.Font(family='Arial', size=10, weight='bold', underline=True),
         'underline+italics': font.Font(family='Arial', size=10, slant='italic', underline=True),
@@ -64,6 +67,9 @@ class App(tk.Frame):
         }
 
         self.chatlog.tag_configure('normal', font=('Arial', 10))
+        self.chatlog.tag_configure('header1', font=fonts['header1'])
+        self.chatlog.tag_configure('header2', font=fonts['header2'])
+        self.chatlog.tag_configure('header3', font=fonts['header3'])
         self.chatlog.tag_configure('underline+bold+italics', font=fonts['underline+bold+italics'])
         self.chatlog.tag_configure('underline+bold', font=fonts['underline+bold'])
         self.chatlog.tag_configure('underline+italics', font=fonts['underline+italics'])

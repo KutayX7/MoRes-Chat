@@ -2,9 +2,12 @@
 # Made entirely by @KutayX7
 # None of the current AIs has managed make this properly
 
-# TODO: Add subtext, headers, lists, nested lists
+# TODO: Add subtext, lists, nested lists
 
 _markdown_symbols = [
+    ('header3', '\n### ', '\n', '\n'),
+    ('header2', '\n## ', '\n', '\n'),
+    ('header1', '\n# ', '\n', '\n'),
     ('underline+bold+italics', '__***', '***__', ''),
     ('underline+bold', '__**', '**__', ''),
     ('underline+italics', '__*', '*__', ''),
@@ -22,7 +25,7 @@ _markdown_symbols = [
 # It just barely works
 def parse_markdown(text: str) -> list[tuple[str, str]]:
     result = []
-    buffer = ""
+    buffer = "\n"
     mode = 'normal'
     def set_mode(m):
         nonlocal mode, buffer, result
@@ -65,8 +68,8 @@ def parse_markdown(text: str) -> list[tuple[str, str]]:
                             set_mode(t)
                             break
                 else:
-                    result.append((buffer, 'normal'))
-                    buffer = ''
+                    result.append((buffer[:-1], 'normal'))
+                    buffer = char[:]
         else:
             for t, s, e, a in _markdown_symbols:
                 if t == mode and e == buffer[-len(e):]:
@@ -76,5 +79,7 @@ def parse_markdown(text: str) -> list[tuple[str, str]]:
                     break
     if len(buffer) > 0:
         result.append((buffer, mode))
+    if len(result) > 0:
+        result[0] = (result[0][0][1:], result[0][1])
     result = list(filter(lambda wm: len(wm[0]) > 0, result))
     return result
