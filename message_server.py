@@ -154,7 +154,7 @@ async def handle_message_client(reader: asyncio.StreamReader, writer: asyncio.St
             raise RuntimeError("Unknown user.")
         username: str = user.get_username()
         data = await asyncio.wait_for(reader.read(MAX_PACKET_SIZE), timeout=10)
-        message = data.decode(encoding='utf-8')
+        message = utils.decode_message_package(data)
         decoded_object = json.loads(message)
         dh_params = utils.extract_diffie_hellman_parameters_from_dict(decoded_object, default_g=DH_G, default_p=DH_P)
         g, p = dh_params['g'], dh_params['p']
@@ -174,7 +174,7 @@ async def handle_message_client(reader: asyncio.StreamReader, writer: asyncio.St
             try:
                 if not (writer.is_closing() or reader.at_eof()): # in case if they still keep the connection
                     data2 = await asyncio.wait_for(reader.read(MAX_PACKET_SIZE), timeout=5)
-                    message2 = data2.decode(encoding='utf-8')
+                    message2 = utils.decode_message_package(data2)
                     decoded_object2 = json.loads(message2)
                     if 'encrypted_message' in decoded_object2:
                         decoded_object['encrypted_message'] = decoded_object2['encrypted_message']
@@ -196,8 +196,7 @@ async def handle_message_client(reader: asyncio.StreamReader, writer: asyncio.St
         utils.print_error("Exception while handling TCP request:", e)
     finally:
         if writer:
-            writer.close()
-            await writer.wait_closed()
+            await utils.close_stream(writer)
 
 async def outbound_message_server():
     while not should_exit:

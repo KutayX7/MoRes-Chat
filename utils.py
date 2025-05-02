@@ -124,7 +124,6 @@ async def send_unencrypted_data(text_data: str, address: str, port: int) -> bool
         _, writer = await asyncio.open_connection(address, port)
         writer.write(json.dumps({"unencrypted_message": text_data}).encode(encoding='utf-8'))
         writer.write_eof()
-        await writer.drain()
         print_info("Successfully sent the unencrypted message.")
         return True
     except:
@@ -132,8 +131,7 @@ async def send_unencrypted_data(text_data: str, address: str, port: int) -> bool
         return False
     finally:
         if writer:
-            writer.close()
-            await writer.wait_closed()
+            await close_stream(writer)
 
 async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, address: str, port: int, our_private_key: int) -> bool:
     print_info("Initiating common DH key exchange")
@@ -148,12 +146,11 @@ async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, addr
 
         # send our oublic key
         writer.write(json.dumps({"key": str(our_public_key)}).encode(encoding='utf-8'))
-        #writer.write_eof()
         await writer.drain()
 
         # read their public key
         data = await asyncio.wait_for(reader.read(MAX_PACKET_SIZE), timeout=10)
-        decoded_data = json.loads(data.decode(encoding='utf-8'))
+        decoded_data = json.loads(decode_message_package(data))
         peer_public_key = int(decoded_data["key"])
 
         # check if the key has any issues
@@ -166,16 +163,11 @@ async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, addr
         encrypted_data: str = encrypt_text(data_to_send, shared_key)
 
         # send the encrypted message
-
         if reader.at_eof():
             _, writer2 = await asyncio.open_connection(address, port)
             writer2.write(json.dumps({"encrypted_message": encrypted_data}).encode())
-            writer2.write_eof()
-            await writer2.drain()
-        elif writer.can_write_eof() and not writer.is_closing():
+        else:
             writer.write(json.dumps({"encrypted_message": encrypted_data}).encode())
-            writer.write_eof()
-            await writer.drain()
         print_info("Successfully sent the encrypted message.")
         return True
     except Exception as e:
@@ -183,11 +175,9 @@ async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, addr
         return False
     finally:
         if writer:
-            writer.close()
-            await writer.wait_closed()
+            await close_stream(writer)
         if writer2:
-            writer2.close()
-            await writer2.wait_closed()
+            await close_stream(writer2)
 
 async def send_encrypted_data_with_custom_diffie_hellman(data_to_send: str, address: str, port: int, our_private_key: int, g: int, p: int) -> bool:
     print_info("Initiating custom DH key exchange")
@@ -221,7 +211,7 @@ async def send_encrypted_data_with_custom_diffie_hellman(data_to_send: str, addr
         print_info("Received peer's public key")
 
         # decode data
-        decoded_data: dict = json.loads(data.decode(encoding='utf-8')) # type: ignore
+        decoded_data: dict = json.loads(decode_message_package(data)) # type: ignore
 
         # extract parameters
         peer_public_key = int(decoded_data["key"]) # type: ignore
@@ -265,11 +255,9 @@ async def send_encrypted_data_with_custom_diffie_hellman(data_to_send: str, addr
         return False
     finally:
         if writer:
-            writer.close()
-            await writer.wait_closed()
+            await close_stream(writer)
         if writer2:
-            writer2.close()
-            await writer2.wait_closed()
+            await close_stream(writer2)
 
 async def send_encrypted_data_with_diffie_hellman(data_to_send: str, address: str, port: int, our_private_key: int, g: int = DEFAULT_DH_G, p: int = DEFAULT_DH_P) -> int:
     data_to_send = unicode_utils.with_surrogates(data_to_send)
@@ -285,6 +273,39 @@ async def send_encrypted_data_with_diffie_hellman(data_to_send: str, address: st
             if success:
                 return 0
         return -1
+
+def decode_message_package(data: bytes) -> str:
+    try:
+        return data.decode(encoding='utf-8')
+    except:
+        pass
+    try:
+        return data.decode(encoding='utf-16')
+    except:
+        pass
+    return data.decode(encoding='ascii')
+
+async def close_stream(stream: asyncio.StreamReader|asyncio.StreamWriter):
+    if isinstance(stream, asyncio.StreamWriter):
+        try:
+            if stream.can_write_eof():
+                stream.write_eof()
+        except:
+            pass
+        try:
+            await stream.drain()
+        except:
+            pass
+        try:
+            stream.close()
+            await stream.close()
+        except:
+            pass
+    elif isinstance(stream, asyncio.StreamReader):
+        pass
+    else:
+        raise Exception(f'Invalid argument. StreamReader or StreamWriter expected, got {type(stream)}')
+
 
 def encrypt_text(text: str, key: int) -> str:
     cipher = Cipher(TripleDES(key=str(key).encode().ljust(24)), CipherModes.ECB())
