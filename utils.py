@@ -150,7 +150,7 @@ async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, addr
 
         # read their public key
         data = await asyncio.wait_for(reader.read(MAX_PACKET_SIZE), timeout=10)
-        decoded_data = json.loads(decode_message_package(data))
+        decoded_data = json.loads(decode_arbitrary_data(data))
         peer_public_key = int(decoded_data["key"])
 
         # check if the key has any issues
@@ -211,7 +211,7 @@ async def send_encrypted_data_with_custom_diffie_hellman(data_to_send: str, addr
         print_info("Received peer's public key")
 
         # decode data
-        decoded_data: dict = json.loads(decode_message_package(data)) # type: ignore
+        decoded_data: dict = json.loads(decode_arbitrary_data(data)) # type: ignore
 
         # extract parameters
         peer_public_key = int(decoded_data["key"]) # type: ignore
@@ -274,7 +274,7 @@ async def send_encrypted_data_with_diffie_hellman(data_to_send: str, address: st
                 return 0
         return -1
 
-def decode_message_package(data: bytes) -> str:
+def decode_arbitrary_data(data: bytes) -> str:
     try:
         return data.decode(encoding='utf-8')
     except:
@@ -335,7 +335,7 @@ def decrypt_text(encrypted_text: str, key: int) -> str:
         unpadded_data = unpad_PKCS7(decrypted_data)
     except:
         unpadded_data = decrypted_data
-    return unpadded_data.decode(encoding='utf-8')
+    return decode_arbitrary_data(unpadded_data)
 
 def decrypt_text_with_fernet(encrypted_text: str, key: int) -> str:
     print_info('falled back to fernet')
@@ -344,7 +344,7 @@ def decrypt_text_with_fernet(encrypted_text: str, key: int) -> str:
         decrypted_data = fernet.decrypt(b64decode(encrypted_text.encode(encoding='ascii')))
     else:
         decrypted_data = fernet.decrypt(encrypted_text)
-    return decrypted_data.decode(encoding='utf-8')
+    return decode_arbitrary_data(decrypted_data)
 
 def pad_PKCS7(data: bytes):
     padder = PKCS7(64).padder()
