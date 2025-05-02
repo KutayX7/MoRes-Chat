@@ -63,6 +63,7 @@ class App(tk.Frame):
         'multiline_codeblock': font.Font(family='Consolas', size=10),
         'bold': font.Font(family='Arial', size=10, weight='bold'),
         'strikethrough': font.Font(family='Arial', size=10, overstrike=True),
+        'underline': font.Font(family='Arial', size=10, underline=True),
         'codeblock': font.Font(family='Consolas', size=10),
         'italics': font.Font(family='Arial', size=10, slant='italic'),
         }
@@ -79,6 +80,7 @@ class App(tk.Frame):
         self.chatlog.tag_configure('multiline_codeblock', font=fonts['multiline_codeblock'], background=utils.get_setting('theme.markdown.codeblock.background', '#444'))
         self.chatlog.tag_configure('bold', font=fonts['bold'])
         self.chatlog.tag_configure('strikethrough', font=fonts['strikethrough'])
+        self.chatlog.tag_configure('underline', font=fonts['underline'])
         self.chatlog.tag_configure('codeblock', font=fonts['codeblock'], background=utils.get_setting('theme.markdown.codeblock.background', '#444'))
         self.chatlog.tag_configure('italics', font=fonts['italics'])
 

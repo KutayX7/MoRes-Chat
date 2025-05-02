@@ -17,6 +17,7 @@ _markdown_symbols = [
     ('multiline_codeblock', '```', '```', '', ''),
     ('bold', '**', '**', '', ''),
     ('strikethrough', '~~', '~~', '', ''),
+    ('underline', '__', '__', '', ''),
     ('codeblock', '`', '`', '', ''),
     ('italics', '*', '*', '', '')
 ]
