@@ -24,6 +24,8 @@ SERVICE_BROADCAST_INTERVAL = 8.0 # in seconds
 DISCOVERY_PORT = 6000
 MESSAGING_PORT = 6001
 
+MAX_PACKET_SIZE = 1024 * 8
+
 # Diffie Hellman and enryption parameters
 DH_G = DEFAULT_DH_G
 DH_P = DEFAULT_DH_P

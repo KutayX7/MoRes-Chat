@@ -152,7 +152,7 @@ async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, addr
         await writer.drain()
 
         # read their public key
-        data = await asyncio.wait_for(reader.read(), timeout=10)
+        data = await asyncio.wait_for(reader.read(MAX_PACKET_SIZE), timeout=10)
         decoded_data = json.loads(data.decode(encoding='utf-8'))
         peer_public_key = int(decoded_data["key"])
 
@@ -217,7 +217,7 @@ async def send_encrypted_data_with_custom_diffie_hellman(data_to_send: str, addr
         print_info("Sent public key")
 
         # read their public key
-        data = await asyncio.wait_for(reader.read(), timeout=10)
+        data = await asyncio.wait_for(reader.read(MAX_PACKET_SIZE), timeout=10)
         print_info("Received peer's public key")
 
         # decode data
