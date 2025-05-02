@@ -33,8 +33,8 @@ class App(tk.Frame):
         self.var_bg1 = utils.bind_variable_to_setting(tk.StringVar(), 'theme.background.color1', '#3f3f4a')
         self.var_font = utils.bind_variable_to_setting(tk.StringVar(), 'theme.font', 'ariel 10')
         self.var_fg = utils.bind_variable_to_setting(tk.StringVar(), 'theme.foreground', '#fff')
-        self.var_entry_highlight_color = utils.bind_variable_to_setting(tk.StringVar(), 'theme.entry.highlight.color', '#33f')
-        self.var_entry_insert_bg = utils.bind_variable_to_setting(tk.StringVar(), 'theme.entry.insert.background', '#fff')
+        self.var_input_bar_highlight_color = utils.bind_variable_to_setting(tk.StringVar(), 'theme.chatInputBar.highlight.color', '#33f')
+        self.var_input_bar_insert_bg = utils.bind_variable_to_setting(tk.StringVar(), 'theme.chatInputBar.insert.background', '#fff')
 
         master.title("MoResChat")
         self.pack(ipadx=30, ipady=30, fill="both", expand=1)
@@ -55,6 +55,7 @@ class App(tk.Frame):
         'header1': font.Font(family='Arial', size=18, weight='bold'),
         'header2': font.Font(family='Arial', size=14, weight='bold'),
         'header3': font.Font(family='Arial', size=12, weight='bold'),
+        'subtext': font.Font(family='Arial', size=8),
         'underline+bold+italics': font.Font(family='Arial', size=10, weight='bold', slant='italic', underline=True),
         'underline+bold': font.Font(family='Arial', size=10, weight='bold', underline=True),
         'underline+italics': font.Font(family='Arial', size=10, slant='italic', underline=True),
@@ -70,14 +71,15 @@ class App(tk.Frame):
         self.chatlog.tag_configure('header1', font=fonts['header1'])
         self.chatlog.tag_configure('header2', font=fonts['header2'])
         self.chatlog.tag_configure('header3', font=fonts['header3'])
+        self.chatlog.tag_configure('subtext', font=fonts['subtext'], foreground=utils.get_setting('theme.markdown.subtext.foreground', '#999'))
         self.chatlog.tag_configure('underline+bold+italics', font=fonts['underline+bold+italics'])
         self.chatlog.tag_configure('underline+bold', font=fonts['underline+bold'])
         self.chatlog.tag_configure('underline+italics', font=fonts['underline+italics'])
         self.chatlog.tag_configure('bold+italics', font=fonts['bold+italics'])
-        self.chatlog.tag_configure('multiline_codeblock', font=fonts['multiline_codeblock'], background='#444')
+        self.chatlog.tag_configure('multiline_codeblock', font=fonts['multiline_codeblock'], background=utils.get_setting('theme.markdown.codeblock.background', '#444'))
         self.chatlog.tag_configure('bold', font=fonts['bold'])
         self.chatlog.tag_configure('strikethrough', font=fonts['strikethrough'])
-        self.chatlog.tag_configure('codeblock', font=fonts['codeblock'], background='#444')
+        self.chatlog.tag_configure('codeblock', font=fonts['codeblock'], background=utils.get_setting('theme.markdown.codeblock.background', '#444'))
         self.chatlog.tag_configure('italics', font=fonts['italics'])
 
         self.chatlog.grid(column=0, row=0, padx=8, pady=8, sticky="news")
@@ -86,8 +88,12 @@ class App(tk.Frame):
         self.text_input_frame.grid(column=0, row=1, sticky='we')
         self.text_input_frame.columnconfigure(0, weight=1)
 
-        self.entry = tk.Entry(self.text_input_frame, relief='flat', highlightthickness=1, insertwidth=1)
-        self.entry.grid(column=0, row=0, padx=8, pady=8, ipadx=6, ipady=6, sticky="ew")
+        self.text_input_bar = tk.Text(
+            self.text_input_frame, relief='flat', highlightthickness=1,
+            insertwidth=1, insertofftime="400", insertontime="300",
+            height=1, state=tk.NORMAL
+        )
+        self.text_input_bar.grid(column=0, row=0, padx=8, pady=8, ipadx=6, ipady=6, sticky="ew")
 
         self.button = MessageSendButton(self.text_input_frame, command=self.send_message)
         self.button.grid(column=1, row=0, padx=10, pady=10, sticky='news')
@@ -127,14 +133,22 @@ class App(tk.Frame):
         self.chatlog.configure(bg=self.var_bg1.get(), fg=self.var_fg.get(), font=self.var_font.get())
         self.chatlog.vbar.configure(bg=self.var_bg0.get())
         self.text_input_frame.configure(bg=self.var_bg0.get())
-        self.entry.configure(bg=self.var_bg1.get(), fg=self.var_fg.get(), font=self.var_font.get(), highlightcolor=self.var_entry_highlight_color.get(), highlightbackground=self.var_bg1.get(), insertbackground=self.var_entry_insert_bg.get())
+        input_text_height = 0
+        for line in (self.text_input_bar.get('1.0', 'end-1c').split('\n')):
+            input_text_height += 1
+        self.text_input_bar.configure(
+            bg=self.var_bg1.get(), fg=self.var_fg.get(),
+            font=self.var_font.get(), highlightcolor=self.var_input_bar_highlight_color.get(), highlightbackground=self.var_bg1.get(),
+            insertbackground=self.var_input_bar_insert_bg.get(),
+            height=min(input_text_height, utils.get_setting('theme.chatInputBar.maxHeight', 7))
+        )
 
     # TODO: Make this actually send messages to peers
     def send_message(self):
-        text: str = self.entry.get()
+        text: str = self.text_input_bar.get('1.0', 'end-1c')
         if text.isspace() or len(text) < 1:
             return
-        self.entry.delete(first=0, last=len(text)*2)
+        self.text_input_bar.delete('1.0', 'end')
         if commands.run_command(text):
             if utils.get_setting('commands.echo', True):
                 self.message_queue.put(MessagePacket(Message('<localhost>', text), ['<localhost>']))
@@ -155,29 +169,29 @@ class App(tk.Frame):
             elif username == "<system>":
                 local = True
             if username:
-                formatted_text = message.get_text_content()
-                formatted_text = formatted_text.replace('\033', "ESC")
-                formatted_text = formatted_text.replace('\r', "CR")
-                formatted_text = formatted_text.replace('\f', "FF")
-                formatted_text = formatted_text.replace('\177', "DEL")
-                formatted_text = formatted_text.replace('<system>', "<<system>>")
+                sanitized_text = message.get_text_content()
+                sanitized_text = sanitized_text.replace('\033', "ESC")
+                sanitized_text = sanitized_text.replace('\r', "CR")
+                sanitized_text = sanitized_text.replace('\f', "FF")
+                sanitized_text = sanitized_text.replace('\177', "DEL")
                 self.chatlog.configure(state="normal")
+                user_suffix = utils.get_setting('theme.chat.userSuffix', '\n')
                 if username == "<system>":
-                    self.chatlog.insert(tk.END, "<system>: ", 'system')
+                    self.chatlog.insert(tk.END, "<system>" + user_suffix, 'system')
                 elif local:
-                    self.chatlog.insert(tk.END, username + ": ", 'localuser')
+                    self.chatlog.insert(tk.END, username + user_suffix, 'localuser')
                 else:
-                    self.chatlog.insert(tk.END, username + ": ", 'user')
-                parsed_text = markdown.parse_markdown(formatted_text)
+                    self.chatlog.insert(tk.END, username + user_suffix, 'user')
+                parsed_text = markdown.parse_markdown(sanitized_text)
                 for wordblock, tag in parsed_text:
-                    if tag == 'multiline codeblock':
+                    if tag == 'multiline_codeblock':
                         max_width = 0
                         for line in wordblock.split('\n'):
                             max_width = max(max_width, len(line))
-                        self.chatlog.insert(tk.END, ' \n' , 'normal')
+                        self.chatlog.insert(tk.END, '  \n' , 'normal')
                         for line in wordblock.split('\n'):
                             self.chatlog.insert(tk.END, line + (' ' * (max_width - len(line))) , 'codeblock')
-                            self.chatlog.insert(tk.END, ' \n' , 'normal')
+                            self.chatlog.insert(tk.END, '  \n' , 'normal')
                     else:
                         self.chatlog.insert(tk.END, wordblock, tag)
                 self.chatlog.insert(tk.END, '\n', 'normal')

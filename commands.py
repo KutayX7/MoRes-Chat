@@ -2,6 +2,7 @@ import config
 import message_server
 import utils
 import scripting
+import config
 from command import Command
 from message import Message
 from message_packet import MessagePacket
@@ -46,39 +47,40 @@ def command_help(*args: *tuple[str]) -> str:
 def encryption_command(*args: *tuple[str]) -> str:
     g_set = False
     p_set = False
+    result = "Following encryption parameters have been set:\n"
     for i in range(len(args)):
         argument = args[i]
         if '--fallback' == argument:
-            config.FALLBACK_TO_PLAINTEXT = True
+            utils.set_setting('security.encryption.forced', False)
+            result += "--fallback "
         if '--no-fallback' == argument:
-            config.FALLBACK_TO_PLAINTEXT = True
+            utils.set_setting('security.encryption.forced', True)
+            result += "--no-fallback "
         if '-0' == argument:
-            config.DH_G = config.DEFAULT_DH_G
-            config.DH_P = config.DEFAULT_DH_P
-            config.PREFERRED_ENCRYPTION_LEVEL = 0
+            utils.set_setting('security.encryption.enabled', False)
+            result += "-0"
         if '-1' == argument:
-            config.DH_G = config.DEFAULT_DH_G
-            config.DH_P = config.DEFAULT_DH_P
-            config.PREFERRED_ENCRYPTION_LEVEL = 1
+            utils.set_setting('security.encryption.enabled', True)
+            utils.set_setting('security.encryption.parameter.g', config.DEFAULT_DH_G)
+            utils.set_setting('security.encryption.parameter.p', config.DEFAULT_DH_P)
+            result += "-1"
         if '-2' == argument:
-            config.PREFERRED_ENCRYPTION_LEVEL = 2
+            utils.set_setting('security.encryption.enabled', True)
+            result += "-2"
         if '-g' == argument:
             value = int(args[i+1])
             if value < 2:
                 raise RuntimeError("Value of `g` must be greater than 1, prefereably 2.")
-            config.DH_G = value
-            g_set = True
+            utils.set_setting('security.encryption.parameter.g', value)
+            result += "-g=" + str(value)
         if '-p' == argument:
             value = int(args[i+1])
             if value < config.DH_G:
                 raise RuntimeError("Value of `g` must be greater than `g`, and must be a prime number.")
             # TODO: Add prime check
-            config.DH_P = value
-            p_set = True
-    if g_set or p_set:
-        if config.PREFERRED_ENCRYPTION_LEVEL < 2:
-            config.PREFERRED_ENCRYPTION_LEVEL = 2
-    return "Encryption paramters have been set."
+            utils.set_setting('security.encryption.parameter.p', value)
+            result += "-p=" + str(value)
+    return result
 
 # TODO: Add option to restore most recent n messages
 # TODO: Add options to filter messages

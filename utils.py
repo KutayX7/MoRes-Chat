@@ -3,6 +3,7 @@ import json
 import asyncio
 import secrets
 from base64 import b64decode, b64encode
+from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.ciphers import Cipher, modes as CipherModes
 from cryptography.hazmat.primitives.padding import PKCS7
 from cryptography.hazmat.decrepit.ciphers.algorithms import TripleDES
@@ -147,7 +148,7 @@ async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, addr
 
         # send our oublic key
         writer.write(json.dumps({"key": str(our_public_key)}).encode(encoding='utf-8'))
-        writer.write_eof()
+        #writer.write_eof()
         await writer.drain()
 
         # read their public key
@@ -165,10 +166,16 @@ async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, addr
         encrypted_data: str = encrypt_text(data_to_send, shared_key)
 
         # send the encrypted message
-        _, writer2 = await asyncio.open_connection(address, port)
-        writer2.write(json.dumps({"encrypted_message": encrypted_data}).encode())
-        writer2.write_eof()
-        await writer2.drain()
+
+        if reader.at_eof():
+            _, writer2 = await asyncio.open_connection(address, port)
+            writer2.write(json.dumps({"encrypted_message": encrypted_data}).encode())
+            writer2.write_eof()
+            await writer2.drain()
+        elif writer.is_closing():
+            writer.write(json.dumps({"encrypted_message": encrypted_data}).encode())
+            writer.write_eof()
+            await writer.drain()
         print_info("Successfully sent the encrypted message.")
         return True
     except Exception as e:
@@ -242,10 +249,15 @@ async def send_encrypted_data_with_custom_diffie_hellman(data_to_send: str, addr
         encrypted_data = encrypt_text(data_to_send, shared_key)
 
         # send the encrypted message
-        _, writer2 = await asyncio.open_connection(address, port)
-        writer2.write(json.dumps({"encrypted_message": encrypted_data}).encode())
-        writer2.write_eof()
-        await writer2.drain()
+        if reader.at_eof():
+            _, writer2 = await asyncio.open_connection(address, port)
+            writer2.write(json.dumps({"encrypted_message": encrypted_data}).encode())
+            writer2.write_eof()
+            await writer2.drain()
+        else:
+            writer.write(json.dumps({"encrypted_message": encrypted_data}).encode())
+            writer.write_eof()
+            await writer.drain()
         print_info("Successfully sent the encrypted message.")
         return True
     except Exception as e:
@@ -268,7 +280,7 @@ async def send_encrypted_data_with_diffie_hellman(data_to_send: str, address: st
         success = await send_encrypted_data_with_common_diffie_hellman(data_to_send, address, port, our_private_key)
         if success:
             return 1
-        if FALLBACK_TO_PLAINTEXT:
+        if not get_setting('security.encryption.forced', not FALLBACK_TO_PLAINTEXT):
             success = await send_unencrypted_data(data_to_send, address, port)
             if success:
                 return 0
@@ -290,8 +302,28 @@ def encrypt_text(text: str, key: int) -> str:
 def decrypt_text(encrypted_text: str, key: int) -> str:
     cipher = Cipher(TripleDES(key=str(key).encode().ljust(24)), CipherModes.ECB())
     decryptor = cipher.decryptor()
-    decrypted_data = decryptor.update(b64decode(encrypted_text.encode(encoding='ascii'))) + decryptor.finalize()
-    return unpad_PKCS7(decrypted_data).decode(encoding='utf-8')
+    try:
+        if is_base64_encoded(encrypted_text):
+            decrypted_data = decryptor.update(b64decode(encrypted_text.encode(encoding='ascii'))) + decryptor.finalize()
+        else:
+            decrypted_data = decryptor.update(encrypted_text) + decryptor.finalize()
+    except:
+        return decrypt_text_with_fernet(encrypted_text, key)
+    unpadded_data = decrypted_data
+    try:
+        unpadded_data = unpad_PKCS7(decrypted_data)
+    except:
+        unpadded_data = decrypted_data
+    return unpadded_data.decode(encoding='utf-8')
+
+def decrypt_text_with_fernet(encrypted_text: str, key: int) -> str:
+    print_info('falled back to fernet')
+    fernet = Fernet(key=str(key).encode().ljust(24))
+    if is_base64_encoded(encrypted_text):
+        decrypted_data = fernet.decrypt(b64decode(encrypted_text.encode(encoding='ascii')))
+    else:
+        decrypted_data = fernet.decrypt(encrypted_text)
+    return decrypted_data.decode(encoding='utf-8')
 
 def pad_PKCS7(data: bytes):
     padder = PKCS7(64).padder()
@@ -302,6 +334,13 @@ def unpad_PKCS7(data: bytes):
     unpadder = PKCS7(64).unpadder()
     unpadded_data = unpadder.update(data) + unpadder.finalize()
     return unpadded_data
+
+def is_base64_encoded(string: str) -> bool:
+    try:
+        result = b64decode(string.encode(encoding='ascii'))
+        return True
+    except:
+        return False
 
 def search_dict(dictionary: dict, keys: list[str]) -> object|None:
     for k in dictionary.keys():
