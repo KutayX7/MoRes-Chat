@@ -172,7 +172,7 @@ async def send_encrypted_data_with_common_diffie_hellman(data_to_send: str, addr
             writer2.write(json.dumps({"encrypted_message": encrypted_data}).encode())
             writer2.write_eof()
             await writer2.drain()
-        elif writer.is_closing():
+        elif writer.can_write_eof() and not writer.is_closing():
             writer.write(json.dumps({"encrypted_message": encrypted_data}).encode())
             writer.write_eof()
             await writer.drain()
@@ -212,7 +212,7 @@ async def send_encrypted_data_with_custom_diffie_hellman(data_to_send: str, addr
                 "g": g_str, "base": g_str,
                  "p": p_str, "mod": p_str, "modulus": p_str, "prime": p_str,
                 }).encode(encoding='utf-8'))
-        writer.write_eof()
+        #writer.write_eof()
         await writer.drain()
         print_info("Sent public key")
 
@@ -254,7 +254,7 @@ async def send_encrypted_data_with_custom_diffie_hellman(data_to_send: str, addr
             writer2.write(json.dumps({"encrypted_message": encrypted_data}).encode())
             writer2.write_eof()
             await writer2.drain()
-        else:
+        elif writer.can_write_eof() and not writer.is_closing():
             writer.write(json.dumps({"encrypted_message": encrypted_data}).encode())
             writer.write_eof()
             await writer.drain()
