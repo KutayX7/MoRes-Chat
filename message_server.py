@@ -199,7 +199,7 @@ async def handle_message_client(reader: asyncio.StreamReader, writer: asyncio.St
                     text_content = utils.decrypt_text(cypher_text, shared_key)
         if 'attachments' in decoded_object:
             for attachment_dict in decoded_object['attachments']:
-                if isinstance(encrypted_attachment, dict):
+                if isinstance(attachment_dict, dict):
                     attachments.append(Attachment.from_dict(attachment_dict))
         if 'encrypted_attachments' in decoded_object:
             shared_key = user.get_shared_key()
