@@ -174,7 +174,10 @@ async def send_encrypted_message(message: Message, address: str, port: int, our_
         encrypted_text = encrypt_text(unicode_utils.with_surrogates(message.get_text_content()), shared_key)
 
         # generate the payload
-        payload_json = {'encrypted_message': encrypted_text, 'author': message.get_author_username()}
+        author = message.get_author_username()
+        if author == '<localhost>':
+            author = get_current_username()
+        payload_json = {'encrypted_message': encrypted_text, 'author': author}
         if message.has_attachments():
             payload_json['encrypted_attachments'] = [encrypt_text(str(attachment)) for attachment in message.get_attachments()]
         if message.has_metadata():
