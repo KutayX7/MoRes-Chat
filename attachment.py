@@ -41,6 +41,8 @@ class Attachment():
         return self._content
     def get_base64encoded_content(self) -> bytes:
         return base64.b64encode(self._content)
+    def get_content_size(self):
+        return len(self._content)
     def to_dict(self):
         return {
             "filename": self.get_sanitized_filename(),

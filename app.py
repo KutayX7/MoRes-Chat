@@ -2,13 +2,17 @@ import tkinter as tk
 import tkinter.font
 import tkinter.scrolledtext
 import queue
+from PIL import Image, ImageTk
 from typing import Any
-from tkinter import StringVar, BooleanVar, font
+from tkinter import StringVar, BooleanVar, font, filedialog
+
+import PIL.Image
 
 import utils
 import message_server
 import commands
 import markdown
+from attachment import Attachment
 from message import Message
 from message_packet import MessagePacket
 from user import User, Users
@@ -88,20 +92,33 @@ class App(tk.Frame):
 
         self.chat_input_frame = tk.Frame(self)
         self.chat_input_frame.grid(column=0, row=1, sticky='we')
-        self.chat_input_frame.columnconfigure(0, weight=1)
+        self.chat_input_frame.columnconfigure(2, weight=1)
+        self.chat_input_frame.rowconfigure(0, weight=0)
 
-        self.attachment_bar = tk.Frame(self.chat_input_frame)
-        self.attachment_bar.grid(column=0, row=0, sticky='we')
+        self.attachment_bar = tk.Frame(self.chat_input_frame, height=0)
+        self.attachment_bar.rowconfigure(0, weight=0)
+        self.attachment_bar_exist = False
+        self.attachment_bar_up_to_date = False
+        
+        self.add_attachment_button = tk.Button(
+            self.chat_input_frame, text='+',
+            command=self.open_attachment_selection,
+            relief='flat', width=2,
+            font=font.Font(family='Arial', size=12)
+        )
+        self.add_attachment_button.grid(column=1, row=1, padx=2, pady=8, sticky='news')
+        self.aab_pad = tk.Frame(self.chat_input_frame, width=0, height=0)
+        self.aab_pad.grid(column=0, row=1, padx=3, pady=0)
 
         self.text_input_bar = tk.Text(
             self.chat_input_frame, relief='flat', highlightthickness=1,
             insertwidth=1, insertofftime="400", insertontime="300",
             height=1, state=tk.NORMAL
         )
-        self.text_input_bar.grid(column=0, row=1, padx=8, pady=8, ipadx=6, ipady=6, sticky="ew")
+        self.text_input_bar.grid(column=2, row=1, padx=8, pady=8, ipadx=6, ipady=6, sticky="ew")
 
         self.button = MessageSendButton(self.chat_input_frame, command=self.send_message)
-        self.button.grid(column=1, row=1, padx=10, pady=10, sticky='news')
+        self.button.grid(column=3, row=1, padx=10, pady=10, sticky='news')
 
         self.user_list = UserList(self)
         self.user_list.grid(row=0, column=1, rowspan=2, sticky='news')
@@ -139,6 +156,9 @@ class App(tk.Frame):
         self.chatlog.vbar.configure(bg=self.var_bg0.get())
         self.chat_input_frame.configure(bg=self.var_bg0.get())
         self.attachment_bar.configure(bg=self.var_bg0.get())
+        self.add_attachment_button.configure(background=self.var_bg1.get(), foreground=self.var_fg.get())
+        self.aab_pad.configure(bg=self.var_bg0.get())
+
         input_text_height = 0
         for line in (self.text_input_bar.get('1.0', 'end-1c').split('\n')):
             input_text_height += 1
@@ -149,19 +169,62 @@ class App(tk.Frame):
             height=min(input_text_height, utils.get_setting('theme.chatInputBar.maxHeight', 7))
         )
 
+        slaves = self.attachment_bar.pack_slaves()
+        if not self.attachment_bar_up_to_date:
+            if self.attachment_bar_exist:
+                self.attachment_bar.grid_forget()
+                self.attachment_bar_exist = False
+            if len(slaves):
+                self.attachment_bar.grid(column=0, row=0, pady=0, sticky='ew', columnspan=4)
+                self.attachment_bar_exist = True
+            self.attachment_bar_up_to_date = True
+        for slave in slaves:
+            if slave.should_remove:
+                slave.destroy()
+                self.attachment_bar_up_to_date = False
+    
+    def upload_attachment(self, attachment: Attachment):
+        frame = AttachmentFrame(self.attachment_bar, attachment)
+        frame.pack(side='left', padx=8)
+        self.attachment_bar_up_to_date = False
+
+    def pop_uploaded_attachments(self) -> list[Attachment]:
+        attachments = []
+        if self.attachment_bar_exist:
+            for slave in self.attachment_bar.pack_slaves():
+                assert(isinstance(slave.attachment, Attachment))
+                attachments.append(slave.attachment)
+                slave.destroy()
+            self.attachment_bar_up_to_date = False
+        return attachments
+
     def send_message(self):
         text: str = self.text_input_bar.get('1.0', 'end-1c')
         if text.isspace() or len(text) < 1:
             return
         self.text_input_bar.delete('1.0', 'end')
+        message = Message('<localhost>', text, self.pop_uploaded_attachments())
+        self.attachment_bar_up_to_date = False
         if commands.run_command(text):
             if utils.get_setting('commands.echo', True):
-                self.message_queue.put(MessagePacket(Message('<localhost>', text), ['<localhost>']))
+                self.message_queue.put(MessagePacket(message, ['<localhost>']))
                 self.after(1, self.event_generate, "<<message_recieved>>")
         else:
-            msg = MessagePacket(Message('<localhost>', text), self.user_list.get_selected_usernames() + ['<localhost>'])
-            message_server.outbound_message_queue.put(msg)
+            packet = MessagePacket(message, self.user_list.get_selected_usernames() + ['<localhost>'])
+            message_server.outbound_message_queue.put(packet)
     
+    def open_attachment_selection(self):
+        filenames = filedialog.askopenfilenames()
+        self.attachment_bar_up_to_date = False
+        for filename in filenames:
+            try:
+                with open(filename, mode='rb') as file:
+                    attachment = Attachment(filename, file.read())
+                    self.upload_attachment(attachment)
+            except:
+                message_server.inbound_message_queue.put(MessagePacket(Message('<system>', f'Failed to access `{filename}`'), ['<localhost>']))
+
+
     def _on_message_recieved(self, e: object):
         packet = self.message_queue.get()
         if packet:
@@ -317,3 +380,50 @@ class MessageSendButton(tk.Button):
     def update(self, *args):
         self.configure(fg = self.var_fg.get(), bg = self.var_bg1.get() if self.var_hover.get() else self.var_bg0.get(), text = self.var_text.get())
 
+class AttachmentFrame(tk.Frame):
+    def __init__(self, parent, attachment: Attachment):
+        super().__init__(parent)
+
+        self.attachment = attachment
+        self.should_remove = False
+
+        self.columnconfigure(0, weight=0)
+        filename = attachment.get_sanitized_filename()
+        size = attachment.get_content_size()
+        size_str = str(int(size))
+        units = [' Bytes',' KB', ' MB', ' GB', ' TB']
+        unit_index = min(4, int((len(size_str)-1)//3))
+        unit_size = size / (1000 ** unit_index)
+        size_str = f'{format(unit_size, '.2f').rstrip('0').rstrip('.')}{units[unit_index]}'
+
+        self.var_bg1 = utils.bind_variable_to_setting(tk.StringVar(), 'theme.background.color1', '#3f3f4a')
+        self.var_font = utils.bind_variable_to_setting(tk.StringVar(), 'theme.font', 'ariel 10')
+        self.var_fg = utils.bind_variable_to_setting(tk.StringVar(), 'theme.foreground', '#fff')
+
+        image = Image.open('./res/icons/file.png')
+        image.apply_transparency()
+        photo_image = ImageTk.PhotoImage(image)
+        self.image_label = tk.Label(self, image=photo_image)
+        self.image_label.image = photo_image
+        self.image_label.grid(column=0, row=0, sticky='news', rowspan=2)
+
+        self.filename_label = tk.Label(self, text=filename)
+        self.filename_label.grid(column=1, row=0, sticky='news')
+
+        self.size_label = tk.Label(self, text=size_str)
+        self.size_label.grid(column=1, row=1, sticky='news')
+
+        self.remove_button = tk.Button(self, text='x', fg='#f00', command=self.mark_for_removal, relief='flat')
+        self.remove_button.grid(column=2, row=0, rowspan=2, sticky='news')
+
+        self.update()
+
+    def update(self):
+        self.after(TPS, self.update)
+        self.image_label.configure(background=self.var_bg1.get())
+        self.filename_label.configure(fg=self.var_fg.get(), bg=self.var_bg1.get(), font=self.var_font.get())
+        self.size_label.configure(fg=self.var_fg.get(), bg=self.var_bg1.get(), font=self.var_font.get())
+        self.remove_button.configure(bg=self.var_bg1.get(), font=self.var_font.get())
+
+    def mark_for_removal(self):
+        self.should_remove = True
