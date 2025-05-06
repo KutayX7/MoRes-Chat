@@ -2,6 +2,7 @@ import unicodedata
 import json
 import asyncio
 import secrets
+import uuid
 from base64 import b64decode, b64encode
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.ciphers import Cipher, modes as CipherModes
@@ -11,6 +12,7 @@ from typing import Any
 from tkinter import Variable
 
 import unicode_utils
+from attachment import Attachment
 from console_utils import *
 from config import *
 from message import Message
@@ -337,3 +339,14 @@ def log_chat_message(message: Message):
                 file.write(text + '\n')
         except:
             print_error("Failed to log the message.")
+
+def save_attachment(attachment: Attachment) -> str:
+    path = os.path.abspath('./data/attachments/')
+    os.makedirs(path, exist_ok=True)
+    filename = attachment.get_sanitized_filename()
+    content = attachment.get_content()
+    unique_name = str(uuid.uuid4()) + '-' + filename
+    unique_abs_file_path = os.path.join(path, unique_name)
+    with open(unique_abs_file_path, mode='xb') as file:
+        file.write(content)
+    return os.path.relpath(unique_abs_file_path)

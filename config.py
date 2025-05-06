@@ -12,6 +12,9 @@ INITIAL_SYSTEM_MESSAGE = "Type '/help' for a list of commands. To chat with othe
 
 DEBUG_LEVEL = args.debug_level
 
+# NOTE: only 3 letter file extensions for now
+AUTO_OPEN_FILE_EXTENSIONS = ['.mp4', '.mp3', '.png', '.jpg', '.waw', '.wmv', '.mkv']
+
 # Username restrictions
 MIN_USERNAME_LENGTH = 3
 MAX_USERNAME_LENGTH = 20

@@ -1,7 +1,9 @@
 import tkinter as tk
 import tkinter.font
 import tkinter.scrolledtext
+import platform
 import queue
+import subprocess
 from PIL import Image, ImageTk
 from typing import Any
 from tkinter import StringVar, BooleanVar, font, filedialog
@@ -53,6 +55,7 @@ class App(tk.Frame):
         self.chatlog.tag_configure('system', foreground='#fe0', font=('Arial', 10, 'bold'))
         self.chatlog.tag_configure('user', foreground='#2de', font=('Arial', 10, 'bold'))
         self.chatlog.tag_configure('localuser', foreground='#d5e', font=('Arial', 10, 'bold'))
+        self.chatlog.tag_configure('attachment_info', foreground='#888', font=('Arial', 10, 'italic'))
 
         # markdown
         fonts = {
@@ -182,7 +185,7 @@ class App(tk.Frame):
             if slave.should_remove:
                 slave.destroy()
                 self.attachment_bar_up_to_date = False
-    
+
     def upload_attachment(self, attachment: Attachment):
         frame = AttachmentFrame(self.attachment_bar, attachment)
         frame.pack(side='left', padx=8)
@@ -224,7 +227,6 @@ class App(tk.Frame):
             except:
                 message_server.inbound_message_queue.put(MessagePacket(Message('<system>', f'Failed to access `{filename}`'), ['<localhost>']))
 
-
     def _on_message_recieved(self, e: object):
         packet = self.message_queue.get()
         if packet:
@@ -263,6 +265,21 @@ class App(tk.Frame):
                     else:
                         self.chatlog.insert(tk.END, wordblock, tag)
                 self.chatlog.insert(tk.END, '\n', 'normal')
+                if message.has_attachments():
+                    for attachment in message.get_attachments():
+                        rel_path = utils.save_attachment(attachment)
+                        self.chatlog.insert(tk.END, f'Attachment: {rel_path}\n', 'attachment_info')
+                        if utils.get_setting('security.attachments.autoOpen', False):
+                            if rel_path[-4:] in AUTO_OPEN_FILE_EXTENSIONS:
+                                match platform.system():
+                                    case 'Windows':
+                                        subprocess.Popen(['start' , '', rel_path], shell=True)
+                                    case 'Linux':
+                                        subprocess.Popen(['xdg-open', rel_path])
+                                    case 'Darwin':
+                                        subprocess.Popen(['open', rel_path])
+                                    case _:
+                                        utils.print_error('Unknown OS.')
                 self.chatlog.configure(state="disabled")
 
 class UserList(tk.Frame):
