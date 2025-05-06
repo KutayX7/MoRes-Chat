@@ -154,7 +154,18 @@ async def handle_message_client(reader: asyncio.StreamReader, writer: asyncio.St
         if not user:
             raise RuntimeError("Unknown user.")
         username: str = user.get_username()
-        data = await asyncio.wait_for(reader.read(MAX_PACKET_SIZE), timeout=10)
+        timeout = 2.5 # max timeout will be around 5 seconds
+        data = b''
+        while True:
+            data = data + await asyncio.wait_for(reader.read(MAX_PACKET_SIZE), timeout=timeout)
+            timeout /= 2 # so we don't wait infinitely due to bad actors
+            if reader.at_eof():
+                break
+            try:
+                json.loads(utils.decode_arbitrary_data(data))
+                break
+            except:
+                pass
         decoded_data = utils.decode_arbitrary_data(data)
         decoded_object = json.loads(decoded_data)
         dh_params = utils.extract_diffie_hellman_parameters_from_dict(decoded_object, default_g=DH_G, default_p=DH_P)
