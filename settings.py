@@ -83,7 +83,7 @@ def _generate_new_settings_file() -> bool:
         if not os.path.exists(_data_path):
             os.mkdir(_data_path)
         with open(_settings_path, 'w') as file:
-            json.dump("{}", file)
+            json.dump(dict(), file)
         _settings_cache = {}
     except:
         raise RuntimeError("Failed to create 'data/settings.json' file.")
