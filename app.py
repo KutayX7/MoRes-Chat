@@ -269,7 +269,7 @@ class App(tk.Frame):
                     for attachment in message.get_attachments():
                         rel_path = utils.save_attachment(attachment)
                         self.chatlog.insert(tk.END, f'Attachment: {rel_path}\n', 'attachment_info')
-                        if utils.get_setting('security.attachments.autoOpen', False):
+                        if utils.get_setting('security.attachments.autoOpen.enabled', False):
                             if rel_path[-4:] in AUTO_OPEN_FILE_EXTENSIONS:
                                 match platform.system():
                                     case 'Windows':
