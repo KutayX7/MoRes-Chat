@@ -149,7 +149,6 @@ class App(tk.Frame):
             height=min(input_text_height, utils.get_setting('theme.chatInputBar.maxHeight', 7))
         )
 
-    # TODO: Make this actually send messages to peers
     def send_message(self):
         text: str = self.text_input_bar.get('1.0', 'end-1c')
         if text.isspace() or len(text) < 1:
