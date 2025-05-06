@@ -86,19 +86,22 @@ class App(tk.Frame):
 
         self.chatlog.grid(column=0, row=0, padx=8, pady=8, sticky="news")
 
-        self.text_input_frame = tk.Frame(self)
-        self.text_input_frame.grid(column=0, row=1, sticky='we')
-        self.text_input_frame.columnconfigure(0, weight=1)
+        self.chat_input_frame = tk.Frame(self)
+        self.chat_input_frame.grid(column=0, row=1, sticky='we')
+        self.chat_input_frame.columnconfigure(0, weight=1)
+
+        self.attachment_bar = tk.Frame(self.chat_input_frame)
+        self.attachment_bar.grid(column=0, row=0, sticky='we')
 
         self.text_input_bar = tk.Text(
-            self.text_input_frame, relief='flat', highlightthickness=1,
+            self.chat_input_frame, relief='flat', highlightthickness=1,
             insertwidth=1, insertofftime="400", insertontime="300",
             height=1, state=tk.NORMAL
         )
-        self.text_input_bar.grid(column=0, row=0, padx=8, pady=8, ipadx=6, ipady=6, sticky="ew")
+        self.text_input_bar.grid(column=0, row=1, padx=8, pady=8, ipadx=6, ipady=6, sticky="ew")
 
-        self.button = MessageSendButton(self.text_input_frame, command=self.send_message)
-        self.button.grid(column=1, row=0, padx=10, pady=10, sticky='news')
+        self.button = MessageSendButton(self.chat_input_frame, command=self.send_message)
+        self.button.grid(column=1, row=1, padx=10, pady=10, sticky='news')
 
         self.user_list = UserList(self)
         self.user_list.grid(row=0, column=1, rowspan=2, sticky='news')
@@ -134,7 +137,8 @@ class App(tk.Frame):
         self.configure(bg=self.var_bg0.get())
         self.chatlog.configure(bg=self.var_bg1.get(), fg=self.var_fg.get(), font=self.var_font.get())
         self.chatlog.vbar.configure(bg=self.var_bg0.get())
-        self.text_input_frame.configure(bg=self.var_bg0.get())
+        self.chat_input_frame.configure(bg=self.var_bg0.get())
+        self.attachment_bar.configure(bg=self.var_bg0.get())
         input_text_height = 0
         for line in (self.text_input_bar.get('1.0', 'end-1c').split('\n')):
             input_text_height += 1
@@ -314,33 +318,3 @@ class MessageSendButton(tk.Button):
     def update(self, *args):
         self.configure(fg = self.var_fg.get(), bg = self.var_bg1.get() if self.var_hover.get() else self.var_bg0.get(), text = self.var_text.get())
 
-#TODO: Implement these
-#TODO: RichText/Markdown, Image Attachments, Image Embeds
-class ChatBox(tk.Frame):
-    def __init__(self, master: tk.Frame):
-        super().__init__(master)
-        self.columnconfigure(0, weight=1)
-        self.rowconfigure(0, weight=1)
-
-        self.canvas = canvas = tk.Canvas(self)
-        canvas.grid(row=0, column=0, sticky="news")
-
-        self.scrollbar = scrollbar = tk.Scrollbar(self, bg=App.BG_1, orient=tk.VERTICAL, command=self._on_scroll_ycommand)
-        scrollbar.grid(row=0, column=1, sticky="new")
-
-        self.message_frames: list[MessageFrame] = []
-    def add_message(self, message: Message) -> None:
-        pass
-    def _on_mouse_enter(self, e: object) -> None:
-        pass
-    def _on_scroll_ycommand(self, e: object) -> None:
-        pass
-
-class MessageFrame(tk.Frame):
-    pass
-
-class MessageText(tk.Text):
-    pass
-
-class MultiLineCodeBlock(tk.Text):
-    pass
