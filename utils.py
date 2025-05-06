@@ -181,7 +181,7 @@ async def send_encrypted_message(message: Message, address: str, port: int, our_
             author = get_current_username()
         payload_json = {'encrypted_message': encrypted_text, 'author': author}
         if message.has_attachments():
-            payload_json['encrypted_attachments'] = [encrypt_text(str(attachment)) for attachment in message.get_attachments()]
+            payload_json['encrypted_attachments'] = [encrypt_text(str(attachment), shared_key) for attachment in message.get_attachments()]
         if message.has_metadata():
             payload_json['metadata'] = message.get_metadata()
         payload = json.dumps(payload_json).encode()
@@ -251,7 +251,7 @@ async def close_stream(stream: asyncio.StreamReader|asyncio.StreamWriter):
         raise Exception(f'Invalid argument. StreamReader or StreamWriter expected, got {type(stream)}')
 
 def encrypt_text(text: str, key: int) -> str:
-    return encrypt_bytes(text.encode('utf-8'))
+    return encrypt_bytes(text.encode('utf-8'), key)
 
 def encrypt_bytes(data: bytes, key: int) -> str:
     cipher = Cipher(TripleDES(key=str(key).encode().ljust(24)), CipherModes.ECB())
