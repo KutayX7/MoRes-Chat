@@ -350,3 +350,6 @@ def save_attachment(attachment: Attachment) -> str:
     with open(unique_abs_file_path, mode='xb') as file:
         file.write(content)
     return os.path.relpath(unique_abs_file_path)
+
+def can_send_attachments() -> bool:
+    return get_setting('security.encryption.enabled', True)

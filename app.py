@@ -213,6 +213,8 @@ class App(tk.Frame):
                 self.message_queue.put(MessagePacket(message, ['<localhost>']))
                 self.after(1, self.event_generate, "<<message_recieved>>")
         else:
+            if message.has_attachments() and not utils.can_send_attachments():
+                message_server.generate_system_message("WARNING: Attachments will not be sent due to current encryption preferences.")
             packet = MessagePacket(message, self.user_list.get_selected_usernames() + ['<localhost>'])
             message_server.outbound_message_queue.put(packet)
     
