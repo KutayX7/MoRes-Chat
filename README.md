@@ -20,3 +20,10 @@ A simple local network chat app made for a school project.
 * Python 3.12 or later
 * cryptography `pip install cryptography`
 * pillow `pip install pillow`
+
+## Known issues
+* Attachments larger than a few kilobytes can't be sent reliably
+* If connected to more than 1 network (for example ethernet + wifi + vpn)
+  - broadcast address should be configured to the desired network's broadcast address in `config.py`
+* Emojis (blame tkinter)
+* Glitchy user interface on MacOS
