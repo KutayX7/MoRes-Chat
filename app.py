@@ -238,6 +238,9 @@ class App(tk.Frame):
                 local = True
             elif username == "<system>":
                 local = True
+            elif utils.get_setting('chat.bell.enabled', True):
+                if self.focus_get() == None:
+                    self.bell()
             if username:
                 sanitized_text = message.get_text_content()
                 sanitized_text = sanitized_text.replace('\033', "ESC")
