@@ -5,6 +5,8 @@ import time
 from queue import SimpleQueue
 
 import utils
+import events
+from attachment import Attachment
 from message import Message
 from message_packet import MessagePacket
 from user import User, Users
@@ -58,15 +60,14 @@ class ChatConnection():
             return
         ip = self._user.get_ip()
         if self._encrypted:
-            result = await utils.send_encrypted_data_with_diffie_hellman(message.get_text_content(), ip, MESSAGING_PORT, self._private_key, g=self._g, p=self._p)
-            if result == 1:
-                self._p = DH_P
-            elif result == 0:
-                self._encrypted = False
-            elif result == -1:
+            if utils.get_setting('security.encryption.forced', not FALLBACK_TO_PLAINTEXT):
+                success = await utils.send_encrypted_message(message, ip, MESSAGING_PORT, self._private_key, g=self._g, p=self._p)
+            else:
+                success = await utils.send_encrypted_message_with_fallback(message, ip, MESSAGING_PORT, self._private_key, g=self._g, p=self._p)
+            if not success:
                 generate_system_message("Failed to send the message.")
         else:
-            await utils.send_unencrypted_data(message.get_text_content(), ip, MESSAGING_PORT)
+            await utils.send_unencrypted_text(message.get_text_content(), ip, MESSAGING_PORT)
         self.reset_private_key()
 
 async def broadcast_send_service():
@@ -153,9 +154,21 @@ async def handle_message_client(reader: asyncio.StreamReader, writer: asyncio.St
         if not user:
             raise RuntimeError("Unknown user.")
         username: str = user.get_username()
-        data = await asyncio.wait_for(reader.read(MAX_PACKET_SIZE), timeout=10)
-        message = utils.decode_arbitrary_data(data)
-        decoded_object = json.loads(message)
+        timeout = 5
+        data = b''
+        while True:
+            data = data + await asyncio.wait_for(reader.read(MAX_PACKET_SIZE), timeout=timeout)
+            timeout *= 0.99999 # to prevent large files (that can't be received in a short time) from being received
+            # TODO: Do better and lighter checks
+            if reader.at_eof():
+                break
+            try:
+                json.loads(utils.decode_arbitrary_data(data))
+                break
+            except:
+                pass
+        decoded_data = utils.decode_arbitrary_data(data)
+        decoded_object = json.loads(decoded_data)
         dh_params = utils.extract_diffie_hellman_parameters_from_dict(decoded_object, default_g=DH_G, default_p=DH_P)
         g, p = dh_params['g'], dh_params['p']
         if g != DEFAULT_DH_G:
@@ -174,24 +187,54 @@ async def handle_message_client(reader: asyncio.StreamReader, writer: asyncio.St
             try:
                 if not (writer.is_closing() or reader.at_eof()): # in case if they still keep the connection
                     data2 = await asyncio.wait_for(reader.read(MAX_PACKET_SIZE), timeout=5)
-                    message2 = utils.decode_arbitrary_data(data2)
-                    decoded_object2 = json.loads(message2)
+                    decoded_data2 = utils.decode_arbitrary_data(data2)
+                    decoded_object2 = json.loads(decoded_data2)
                     if 'encrypted_message' in decoded_object2:
                         decoded_object['encrypted_message'] = decoded_object2['encrypted_message']
+                    if 'encrypted_attachments' in decoded_object2:
+                        decoded_object['encrypted_attachments'] = decoded_object2['encrypted_attachments']
             except Exception as e2:
                 pass
+        text_content = ""
+        attachments = list()
+        metadata = dict()
+        author = username
         if "unencrypted_message" in decoded_object:
             text = decoded_object["unencrypted_message"]
             assert(type(text) == type(''))
-            push_inbound_message(MessagePacket(Message(username, text), ['<localhost>']))
+            text_content = text
         if "encrypted_message" in decoded_object:
             shared_key = user.get_shared_key()
-            if not shared_key:
-                return
-            cypher_text = decoded_object["encrypted_message"]
-            if isinstance(cypher_text, str):
-                text = utils.decrypt_text(cypher_text, shared_key)
-                push_inbound_message(MessagePacket(Message(username, text), ['<localhost>']))
+            if shared_key:
+                cypher_text = decoded_object["encrypted_message"]
+                if isinstance(cypher_text, str):
+                    text_content = utils.decrypt_text(cypher_text, shared_key)
+        if 'attachments' in decoded_object:
+            for attachment_dict in decoded_object['attachments']:
+                if isinstance(attachment_dict, dict):
+                    attachments.append(Attachment.from_dict(attachment_dict))
+        if 'encrypted_attachments' in decoded_object:
+            shared_key = user.get_shared_key()
+            if shared_key:
+                for encrypted_attachment in decoded_object['encrypted_attachments']:
+                    if isinstance(encrypted_attachment, str):
+                        attachments.append(Attachment.from_str(utils.decrypt_text(encrypted_attachment, shared_key)))
+        if 'metadata' in decoded_object:
+            if isinstance(decoded_object['metadata'], dict):
+                metadata = decoded_object['metadata']
+        if 'author' in decoded_object:
+            if isinstance(decoded_object['author'], str):
+                author = decoded_object['author']
+                if Users.check_username(author):
+                    user2 = Users.get_user_by_username(author)
+                    if user2.has_ip() and user2.get_ip() == ip:
+                        pass
+                    else:
+                        author = username
+                else:
+                    author = username
+        message = Message(author, text_content, attachments, metadata)
+        push_inbound_message(MessagePacket(message, ['<localhost>']))
     except Exception as e:
         utils.print_error("Exception while handling TCP request:", e)
     finally:
@@ -202,15 +245,15 @@ async def outbound_message_server():
     while not should_exit:
         message_packet: MessagePacket|None = pull_outbound_message()
         if message_packet:
-            for receiver in message_packet.get_outbound_receivers():
-                try:
-                    connection = ChatConnection(receiver)
-                    await connection.send_message(message_packet.message)
-                except Exception as e:
-                    utils.print_error("Exception while sending an outbound message:", e)
             if message_packet.is_inbound():
                 push_inbound_message(message_packet)
-        await asyncio.sleep(0.01)
+            async with asyncio.TaskGroup() as task_group:
+                for receiver in message_packet.get_outbound_receivers():
+                    if Users.check_username(receiver):
+                        connection = ChatConnection(receiver)
+                        task_group.create_task(connection.send_message(message_packet.message))
+        else:
+            await asyncio.sleep(0.01)
 
 async def run_messaging_server():
     server = await asyncio.start_server(handle_message_client, '', MESSAGING_PORT)
@@ -225,6 +268,10 @@ async def main():
     global ready_to_exit
     broadcast_service_task = asyncio.create_task(broadcast_service())
     messaging_service_task = asyncio.create_task(messaging_service())
+
+    events.on_event('ban_ip', lambda _, ip: isinstance(ip, str) and blocklist.setdefault(ip, 1))
+    events.on_event('unban_ip', lambda _, ip: isinstance(ip, str) and blocklist.pop(ip, None))
+
     while not should_exit:
         await asyncio.sleep(0.01)
     await broadcast_service_task

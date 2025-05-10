@@ -12,6 +12,9 @@ INITIAL_SYSTEM_MESSAGE = "Type '/help' for a list of commands. To chat with othe
 
 DEBUG_LEVEL = args.debug_level
 
+# NOTE: only 3 letter file extensions for now
+AUTO_OPEN_FILE_EXTENSIONS = ['.mp4', '.mp3', '.png', '.jpg', '.waw', '.wmv', '.mkv', '.gif']
+
 # Username restrictions
 MIN_USERNAME_LENGTH = 3
 MAX_USERNAME_LENGTH = 20
@@ -24,7 +27,7 @@ SERVICE_BROADCAST_INTERVAL = 8.0 # in seconds
 DISCOVERY_PORT = 6000
 MESSAGING_PORT = 6001
 
-MAX_PACKET_SIZE = 1024 * 8
+MAX_PACKET_SIZE = 1024 * 64
 
 # Diffie Hellman and enryption parameters
 DH_G = DEFAULT_DH_G
