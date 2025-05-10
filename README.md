@@ -11,9 +11,12 @@ A simple local network chat app made for a school project.
 * 🐍 User scripts
   - User scripts allows the user to add their $${\color{#0af}py\color{#ff0}thon}$$ scripts to extend the capabilities of the app
   - Add your script to the `user_scripts` folder (generated after first run) then use the `/exec` slash comamnd to execute your script
-
-More to be added
+* 🎨 Themes
+  - You can use pre-installed themes, or make your own.
+* 📁 Message attachments
+  - You can attach small files to your messages
 
 ## Dependencies
 * Python 3.12 or later
 * cryptography `pip install cryptography`
+* pillow `pip install pillow`
