@@ -154,11 +154,12 @@ async def handle_message_client(reader: asyncio.StreamReader, writer: asyncio.St
         if not user:
             raise RuntimeError("Unknown user.")
         username: str = user.get_username()
-        timeout = 2.5 # max timeout will be around 5 seconds
+        timeout = 5
         data = b''
         while True:
             data = data + await asyncio.wait_for(reader.read(MAX_PACKET_SIZE), timeout=timeout)
-            timeout /= 2 # so we don't wait infinitely due to bad actors
+            timeout *= 0.75 # to prevent large files (that can't be received in a short time) from being received
+            # TODO: Do better and lighter checks
             if reader.at_eof():
                 break
             try:
